@@ -7,7 +7,7 @@ output: html_document
 
 ```{r Directorio, message=FALSE, warning=FALSE, include=FALSE}
 #rm(list=ls())
-setwd("C:/PERSONAL_MAPU/UNIVERSIDADES/NACIONAL/ANALISIS_ESTADISTICO_DE_REDES/TALLER_3")
+#setwd("C:/PERSONAL_MAPU/UNIVERSIDADES/NACIONAL/ANALISIS_ESTADISTICO_DE_REDES/TALLER_3")
 library(readr) # achivos de texto o csv
 library(igraph) # grafos
 library(ggraph) # para visualizaciones
