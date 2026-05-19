@@ -1187,6 +1187,10 @@ for (i in seq_along(validacion2dclusters)) {
 ```
 
 ## e. Repetir el análisis para toda la sede Bogotá.
+
+
+## f. Interpretar los hallazgos obtenidos.
+
 ```{r HORUS Bogotá, include=FALSE}
 bogota <- fromJSON("graph/UNAL_bogota.json")
 bogota[["links"]] <- bogota[["links"]] %>% 
@@ -1504,11 +1508,6 @@ validacion2eclusters <- lapply(
   modularity
 )
 
-
-
-set.seed(831)
-
-
 par(mfrow=c(1,2), oma = c(0, 0, 3, 0))
 set.seed(2103)
 
@@ -1516,58 +1515,31 @@ clust <- clusters_coords[[which.max(validacion2eclusters)]]
 
 mem <- membership(clust)
 
+tab <- table(mem)
+clusters_validos <- names(tab[tab > 1])
+
+mem <- mem[mem %in% clusters_validos]
+
 subgrafos <- lapply(unique(mem), function(k) {
   nodes <- names(mem[mem == k])
   induced_subgraph(red_profesores_bogota, vids = nodes)
 })
-    ord <- order(
-      sizes(clust),
-      decreasing = TRUE
-    )[1:min(10, length(sizes(clust)))]
-    
-    
-
-    plot(
-      x = clust,
-      y = red_profesores_bogota,
-      layout = layout_kk,
-      vertex.size = 12,
-      vertex.label = NA
-    )
-
-    plot.new()
-    
-    legend(
-      "center",
-      legend = c(
-        "Top 10 clusters:",
-        paste0(
-          " - Cluster ",
-          ord,
-          " (n = ",
-          sizes(clust)[ord],
-          ")"
-        )
-      ),
-      col = c(
-        NA,
-        rainbow(length(sizes(clust)))[ord]
-      ),
-      pch = c(
-        NA,
-        rep(19, length(ord))
-      ),
-      pt.cex = 1.5,
-      bty = "n"
-    )
-    
-
+    plots <- lapply(subgrafos, function(g) {
+  lay <- create_layout(g, layout = "fr")
   
+  ggraph(lay) +
+    geom_edge_link0(alpha = 0.2, colour = "gray70") +
+    geom_node_point(size = 2, colour = "chocolate3") +
+    theme_void()
+})
+
+for (i in 1:length(plots)) {
+  print(plots[[i]])
+} 
 
 
 ```
 
-## f. Interpretar los hallazgos obtenidos.
 
 # 3.
 
@@ -1601,7 +1573,7 @@ y $T_{k}$ es el número de instantes de tiempo en el período $k$, con $k=0,1$. 
 
 Considere las acciones de tutela disponibles en la página de la Relatoría de la Corte Constitucional de Colombia (Relatoría de la Corte Constitucional). Según la Corte, los derechos más protegidos mediante tutelas son, en primer lugar, el derecho de petición, seguido del derecho a la salud y, finalmente, el derecho al debido proceso.
 
-## a. Una vez en la pagina, en el buscador principal escriba derecho a la aslud y filtre la fecha para todas aquelas tutelas resueltas en el 2004 (fecha de providencia desde 01/01/2004) hasta el dia 13/12/24. Luego, incie la busqueda. En la parte izquierda de la pagina encontrara filtros adicionales. Asi, en la sección Providencia filtre por Tutela y a continuacion exporte los resultados enexcel utilizando el boton verde que dice Exportar resultados en EXCEL. A la hora de hacer este proceso le deben resultar 158 providencias. CUando exporte los resultados escojola opcion Seleccionar Todas respecto a la informacion a exportar. Este proceso descargara en su computador un archivo con raiz “relatoria_corte_Constitucional” seguido por la fecha del dia de la descarga. ahora consolidar un archivo de texto plano en el que consigne todo el texto dado en la columna denominada “sintesis”.
+## a. Una vez en la pagina, en el buscador principal escriba derecho a la aslud y filtre la fecha para todas aquelas tutelas resueltas en el 2004 (fecha de providencia desde 01/01/2004) hasta el dia 13/12/24. Luego, incie la busqueda. En la parte izquierda de la pagina encontrara filtros adicionales. Asi, en la sección Providencia filtre por Tutela y a continuacion exporte los resultados en excel utilizando el boton verde que dice Exportar resultados en EXCEL. A la hora de hacer este proceso le deben resultar 158 providencias. CUando exporte los resultados escojola opcion Seleccionar Todas respecto a la informacion a exportar. Este proceso descargara en su computador un archivo con raiz “relatoria_corte_Constitucional” seguido por la fecha del dia de la descarga. ahora consolidar un archivo de texto plano en el que consigne todo el texto dado en la columna denominada “Resumen”.
 
 ## b. Repetir el procedimiento descrito en el numeral a. para “derecho de petición” en 2024.
 
