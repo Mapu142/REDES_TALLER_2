@@ -1359,51 +1359,16 @@ medidas_2ecentralidad %>%
 
 
 ```{r 2e cohesión, echo=FALSE}
-# frecuencias de clanes
-clanes <- c(12,13,14)#c(1,2,5,6,9,12,13,14)#,22,23,24,25,26,27,28,29,30,31,32,33,34,35,61,85,106)
-
-tabla_cliques2e <- sapply(
-  X = clanes,
-  FUN = \(k) {
-    igraph::count_max_cliques(red_profesores_bogota, min = k, max = k)
-  }
-)
-
-
-
-tabla_cliques2e <- tabla_cliques2e %>% filter(frecuencia!=0)
-
-
 densidad2e <- data.frame(Valor='Densidad')
 
-clanes_maximal <- lapply(seq_along(largest_cliques(red_profesores_bogota)), function(k){
-i <- largest_cliques(red_profesores_bogota)[[k]]
-clan_maximal <- induced_subgraph(graph = red_profesores_bogota,vids = i)
-plot(clan_maximal, main=paste0("clan maximal ", k),
-       vertex.size        = 50,
-     vertex.label.color = "black",
-     vertex.color       = 'pink1', 
-     vertex.frame.color = "black",
-     edge.color         = "gray30")
-})
+
 df <- data.frame(densidad=edge_density(red_profesores_bogota))
-densidad2d <- cbind(densidad2e,df)
-
-
-names(tabla_cliques) <- c('Tamaño clique','cantidad de cliques')
-
-tabla_cliques2e%>% kableExtra::kbl(
-  caption = "Tamaños de clanes y su frecuencia para", 
-  digits = 3) %>% 
-  kableExtra::kable_minimal()
-
-
-
+densidad2e <- cbind(densidad2e,df)
 
 
 densidad2e %>% 
   kableExtra::kbl(
-    caption = "Densidad de los grafos de los departamentos",
+    caption = "Densidad de la red de Bogotá",
     digits = 3
   ) %>% 
   kableExtra::kable_minimal()
@@ -1430,7 +1395,7 @@ df <- data.frame(
              paste(names(articulation_points(red_profesores_bogota)),
                    collapse = ";"))
   )
-tabla.2dconectividad <- cbind(tabla.2econectividad,df)
+tabla.2econectividad <- cbind(tabla.2econectividad,df)
 
 
 tabla.2econectividad %>% 
@@ -1448,7 +1413,7 @@ tabla.2econectividad %>%
 tabla.2etransitividadg <- data.frame(Medidas=c('Transitividad global'))
 
 
-tabla.2dtransitividadl <- lapply(
+tabla.2etransitividadl <- lapply(
   redes_profesores,
   function(g) {
     
@@ -1463,19 +1428,19 @@ tabla.2dtransitividadl <- lapply(
   }
 )
 
-for (i in 1:length(tabla.2dtransitividadl)) {
+for (i in 1:length(tabla.2etransitividadl)) {
   trans_global <- transitivity(
     graph = redes_profesores[[i]], 
     type = 'global'
   )
   df <- data.frame(
-    transitividad=tabla.2dtransitividadl[[i]]
+    transitividad=tabla.2etransitividadl[[i]]
   )
   p <- ggplot2::ggplot(data = df,
                   mapping = aes(x = transitividad))+
     ggplot2::geom_histogram(col ='gray24', fill = colores[i])+
     ggplot2::labs(
-    title = paste("Distribución de la transitividad local en el departamento de", names(tabla.2dtransitividadl)[i],sep = ' '),
+    title = paste("Distribución de la transitividad local en el departamento de", names(tabla.2etransitividadl)[i],sep = ' '),
     x = "Transitividad local",
     y = "Frecuencia"
   ) +
