@@ -1,0 +1,1364 @@
+---
+title: "Taller 2"
+author: "María Paula Camargo Rincón"
+date: "2026-05-04"
+output: html_document
+---
+
+```{r Directorio, message=FALSE, warning=FALSE, include=FALSE}
+#rm(list=ls())
+setwd("C:/PERSONAL_MAPU/UNIVERSIDADES/NACIONAL/ANALISIS_ESTADISTICO_DE_REDES/TALLER_3")
+library(readr) # achivos de texto o csv
+library(igraph) # grafos
+library(ggraph) # para visualizaciones
+library(tidygraph) #para activate node
+library(dplyr) # manejo de datos
+library(jsonlite) # para acceder a archivos json
+library(corrplot) # graficos de matriz de adyacencia
+library(ggplot2) # para gráficos
+```
+
+# 1.
+
+Una *estructura social cognitiva* es una representación mental que organiza cómo las personas perciben, interpretan y responden a interacciones sociales, roles y normas dentro de un grupo. Esta estructura, formada a partir de experiencias previas y procesos cognitivos como la percepción y la memoria, incluye esquemas, valores y mapas de relaciones que permiten anticipar comportamientos y adaptarse al entorno social. Su configuración varía según el contexto cultural y social, reflejando las particularidades de cada entorno colectivo.
+
+David Krackhardt recopiló datos relacionales para analizar la estructura social cognitiva de 21 miembros del personal administrativo de una empresa dedicada a la fabricación de maquinaria de alta tecnología, con el propósito de evaluar los efectos de una intervención administrativa. Una de las preguntas clave del estudio fue: “¿Quién es amigo de $X$?”, lo que permitió a cada persona identificar no solo sus propias relaciones de amistad, sino también las que percibía entre los demás empleados. Esto generó una matriz de adyacencia de $21\times21$
+, que representaba tanto las conexiones reales como las percibidas entre todos los miembros del grupo.
+
+El conjunto de datos, incluye una red multicapa que describe la estructura social cognitiva completa de los 21 actores. Esta red está formada por 21 matrices de adyacencia de $21\times21$, donde cada matriz $j$ refleja la percepción del actor $j$ sobre las relaciones de amistad dentro del sistema social, con $j=1,…,21$. Además, el archivo krackhardt21c.txt proporciona información adicional sobre cada actor, como la edad (age, en años), la antigüedad en la empresa (tenure, en años), el nivel jerárquico (level, donde 1 corresponde al presidente, 2 al vicepresidente y 3 al gerente) y el departamento al que pertenece (dept), destacando que el presidente no está asignado a ningún departamento.
+
+## a. Obtener la red de consenso cuya matriz de adyacencia $Y=[y_{i,j}]$ se define de la siguiente manera: $y_{i,j}=1$ si el promedio $\frac{1}{I}\sum_{k=1}^{I}y_{i,j,k}$ es mayor a $0.5$, y $y_{i,j}=0$ en caso contrario. Aquí, $I$ representa el número de actores en el sistema, y $y_{i,j,k}$ corresponde a la percepción del actor $k$ sobre la relación entre los actores $i$ y $j$. Crear un par de visualizaciones de la red de consenso que integren la mayor cantidad posible de información asociada a los nodos.
+
+```{r krackfr, include=FALSE}
+library(readr)
+krackfr <- read_table("krackfr.txt", col_names = FALSE)
+I <- dim(krackfr)[2]
+colnames(krackfr) <- c(1:I)
+```
+```{r promedio krackfr, echo=FALSE}
+adyacencia_krackfr <- matrix(nrow = I, ncol = I,byrow = FALSE)
+colnames(adyacencia_krackfr) <- colnames(krackfr)
+row.names(adyacencia_krackfr) <- colnames(krackfr) 
+for (i in 1:I) {
+  k <- seq(i, I * I, by = I)
+  for (j in 1:I) {
+    adyacencia_krackfr[j,i] <- mean(krackfr[[j]][k],na.rm = TRUE)
+    
+    if (adyacencia_krackfr[j,i]>0.5) {
+      adyacencia_krackfr[j,i] <- 1
+    } else adyacencia_krackfr[j,i] <- 0
+
+  }
+}
+library(corrplot)
+corrplot(
+  corr        = as.matrix(adyacencia_krackfr), 
+  method      = "color", 
+  tl.col      = "black", 
+  addgrid.col = "gray90", 
+  cl.pos      = "n"
+)
+```
+
+```{r krackfr_grafo, include=FALSE}
+krackfr_grafo <- graph_from_adjacency_matrix(adyacencia_krackfr)
+dat_nodos <- read_table("krackhardt21c.txt")
+dat_nodos <- as.data.frame(dat_nodos)
+row.names(dat_nodos) <- colnames(krackfr)
+dat_nodos <- dat_nodos %>% 
+  mutate(
+    grupo_edad = case_when(
+      age <= quantile(age,0.25) ~ "grupo 1",
+      age <= quantile(age,0.5) ~ "grupo 2",
+      age <= quantile(age,0.75) ~ "grupo 3",
+      TRUE ~ "grupo 4"),
+    grupo_tenure = case_when(
+      tenure <= quantile(tenure,0.25) ~ "grupo 1",
+      tenure <= quantile(tenure,0.5) ~ "grupo 2",
+      tenure <= quantile(tenure,0.75) ~ "grupo 3",
+      TRUE ~ "grupo 4"))
+```
+
+```{r plot 1 krackfr_grafo, echo=FALSE, message=FALSE, warning=FALSE}
+set.seed(1758)
+circle <- layout_in_circle(graph = krackfr_grafo)
+library(tidygraph)
+library(ggraph)
+library(ggplot2)
+grafo_tbl <- as_tbl_graph(krackfr_grafo) %>% 
+  activate(nodes) %>% 
+  mutate(
+    departamento = factor(dat_nodos$dept),
+    grupo_edad = factor(dat_nodos$grupo_edad),
+    nivel = factor(dat_nodos$level),
+    permanencia = factor(dat_nodos$grupo_tenure)
+  )
+ggraph(grafo_tbl, layout = "circle") +
+  geom_edge_link(
+  alpha = 0.4,
+  arrow = arrow(length = unit(3, "mm")),
+  end_cap = circle(3, "mm")
+) +
+  geom_node_point(
+    aes(
+      shape = departamento,
+      color = grupo_edad
+    ),
+    size = 7
+  ) +
+  geom_node_text(
+    aes(label = name),
+    repel = TRUE
+  ) +
+  scale_shape_manual(
+    values = c(16, 15, 17, 18, 8)
+  ) +
+  theme_void()
+```
+```{r plot 2 krackfr_grafo, echo=FALSE}
+ggraph(grafo_tbl, layout = "circle") +
+  geom_edge_link(
+  alpha = 0.4,
+  arrow = arrow(length = unit(3, "mm")),
+  end_cap = circle(3, "mm")
+) +
+  geom_node_point(
+    aes(
+      shape = nivel,
+      color = permanencia
+    ),
+    size = 7
+  ) +
+  geom_node_text(
+    aes(label = name),
+    repel = TRUE
+  ) +
+  scale_shape_manual(
+    values = c( 15, 18, 8)
+  ) +
+  theme_void()
+```
+```{r plot 3 krackfr_grafo, echo=FALSE}
+ggraph(grafo_tbl, layout = "circle") +
+  geom_edge_link(
+  alpha = 0.4,
+  arrow = arrow(length = unit(3, "mm")),
+  end_cap = circle(3, "mm")
+) +
+  geom_node_point(
+    aes(
+      shape = departamento,
+      color = permanencia
+    ),
+    size = 7
+  ) +
+  geom_node_text(
+    aes(label = name),
+    repel = TRUE
+  ) +
+  scale_shape_manual(
+    values = c(16, 15, 17, 18, 8)
+  ) +
+  theme_void()
+```
+
+## b. Generar visualizaciones simples, sin elementos decorativos, en un diseño circular para todas las redes de percepción y la red de consenso. ¿Se identifican diferencias notables entre las redes de percepción o entre estas y la red de consenso?
+```{r 22 grafos, include=FALSE}
+adyacencias <- list()
+grafos21 <- list()
+for (i in 1:I) {
+  j <- seq(1,21*21,21)[i]
+  adyacencias[[i]] <- as.matrix(krackfr[j:(j+(I-1)),])
+  grafos21[[i]] <- graph_from_adjacency_matrix(adyacencias[[i]]) 
+}
+grafos21[[22]] <- krackfr_grafo
+```
+
+```{r 22 plots, echo=FALSE}
+par(mfrow=c(1,2))
+for (i in 1:(I)) {
+  plot(grafos21[[i]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepción', i,sep = ' '))
+}
+ plot(grafos21[[22]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main='red de consenso')
+```
+
+## c. Calcular el grado normalizado de cada actor en todas las redes de percepción y en la red de consenso. Para cada actor, crear un diagrama de caja que muestre la distribución de su grado a través de las percepciones y el consenso. Resaltar en cada diagrama con un triángulo rojo ($\triangle$) el grado según su propia percepción y con una cruz azul ($\times$) el grado basado en el consenso. Todos los diagramas de caja deben estar organizados en un único gráfico Analizar si los actores parecen tener una percepción precisa de su participación en las relaciones del sistema.
+
+```{r grado normalizado, include=FALSE}
+grados <- list()
+for (i in 1:length(grafos21)) {
+  grados[[i]] <- degree(grafos21[[i]], normalized = TRUE)
+}
+```
+
+```{r diagramas de caja grados, echo=FALSE, fig.height=7, fig.width=10}
+actores <- data.frame()
+for (i in 1:I) {
+  gradoj <- c()
+  for (j in 1:length(grados)) {
+    gradoj[j] <- grados[[j]][i]  
+  }
+  df <- data.frame(
+    actor=factor(i),
+    grado=gradoj,
+    percepcion=gradoj[i],
+    consenso=gradoj[22]
+  )
+  actores <- rbind(actores,df)
+}
+
+ggplot(actores, aes(x = actor, y = grado)) +
+  geom_boxplot(col=rainbow(I)) +
+
+  # Triángulo rojo
+  geom_point(
+    data = actores,
+    aes(x = actor, y = percepcion),
+    shape = 2,
+    color = "red",
+    size = 4
+  ) +
+
+  # Cruz azul
+  geom_point(
+    data = actores,
+    aes(x = actor, y = consenso),
+    shape = 4,
+    color = "blue",
+    size = 4,
+    stroke = 1.2
+  ) +
+
+  labs(
+    title = "Distribución de grados por actor",
+    x = "Actor",
+    y = "Grado normalizado"
+  ) +
+
+  theme_minimal()
+
+```
+
+## d. Repetir el procedimiento anterior para calcular la centralidad de cercanía, la centralidad de intermediación y la centralidad propia de cada actor en todas las redes de percepción y en la red de consenso. Analizar si los actores parecen tener una percepción precisa de su posición e influencia en las relaciones del sistema.
+
+### Cercanía
+
+```{r cercania normalizado, message=FALSE, warning=FALSE, include=FALSE}
+cercanias <- list()
+for (i in 1:length(grafos21)) {
+  cercanias[[i]] <- closeness(grafos21[[i]], normalized = TRUE)
+  cercanias[[i]][is.nan(cercanias[[i]])] <- NA
+}
+```
+
+```{r diagramas de caja cercania, echo=FALSE, fig.height=7, fig.width=10, message=FALSE, warning=FALSE}
+actores <- data.frame()
+for (i in 1:I) {
+  gradoj <- c()
+  for (j in 1:length(cercanias)) {
+    gradoj[j] <- cercanias[[j]][i]  
+  }
+  df <- data.frame(
+    actor=factor(i),
+    cercania=gradoj,
+    percepcion=gradoj[i],
+    consenso=gradoj[22]
+  )
+  actores <- rbind(actores,df)
+}
+
+ggplot(actores, aes(x = actor, y = cercania)) +
+  geom_boxplot(col=rainbow(I)) +
+
+  # Triángulo rojo
+  geom_point(
+    data = actores,
+    aes(x = actor, y = percepcion),
+    shape = 2,
+    color = "red",
+    size = 4
+  ) +
+
+  # Cruz azul
+  geom_point(
+    data = actores,
+    aes(x = actor, y = consenso),
+    shape = 4,
+    color = "blue",
+    size = 4,
+    stroke = 1.2
+  ) +
+
+  labs(
+    title = "Distribución de grados por actor",
+    x = "Actor",
+    y = "Grado normalizado"
+  ) +
+
+  theme_minimal()
+
+```
+
+### Intermediación
+
+```{r intermediación normalizado, message=FALSE, warning=FALSE, include=FALSE}
+intermediaciones <- list()
+for (i in 1:length(grafos21)) {
+  intermediaciones[[i]] <- betweenness(grafos21[[i]], normalized = TRUE)
+  intermediaciones[[i]][is.nan(intermediaciones[[i]])] <- NA
+}
+```
+
+```{r diagramas de caja intermeciación, echo=FALSE, fig.height=7, fig.width=10, message=FALSE, warning=FALSE}
+actores <- data.frame()
+for (i in 1:I) {
+  gradoj <- c()
+  for (j in 1:length(intermediaciones)) {
+    gradoj[j] <- intermediaciones[[j]][i]  
+  }
+  df <- data.frame(
+    actor=factor(i),
+    intermediacion=gradoj,
+    percepcion=gradoj[i],
+    consenso=gradoj[22]
+  )
+  actores <- rbind(actores,df)
+}
+
+ggplot(actores, aes(x = actor, y = intermediacion)) +
+  geom_boxplot(col=rainbow(I)) +
+
+  # Triángulo rojo
+  geom_point(
+    data = actores,
+    aes(x = actor, y = percepcion),
+    shape = 2,
+    color = "red",
+    size = 4
+  ) +
+
+  # Cruz azul
+  geom_point(
+    data = actores,
+    aes(x = actor, y = consenso),
+    shape = 4,
+    color = "blue",
+    size = 4,
+    stroke = 1.2
+  ) +
+
+  labs(
+    title = "Distribución de grados por actor",
+    x = "Actor",
+    y = "Grado normalizado"
+  ) +
+
+  theme_minimal()
+
+```
+
+### Propia
+
+```{r propia normalizado, message=FALSE, warning=FALSE, include=FALSE}
+propias <- list()
+for (i in 1:length(grafos21)) {
+  propias[[i]] <- eigen_centrality(grafos21[[i]])$vector
+  propias[[i]][is.nan(propias[[i]])] <- NA
+}
+```
+
+```{r diagramas de caja propia, echo=FALSE, fig.height=7, fig.width=10, message=FALSE, warning=FALSE}
+actores <- data.frame()
+for (i in 1:I) {
+  gradoj <- c()
+  for (j in 1:length(propias)) {
+    gradoj[j] <- propias[[j]][i]  
+  }
+  df <- data.frame(
+    actor=factor(i),
+    propia=gradoj,
+    percepcion=gradoj[i],
+    consenso=gradoj[22]
+  )
+  actores <- rbind(actores,df)
+}
+
+ggplot(actores, aes(x = actor, y = propia)) +
+  geom_boxplot(col=rainbow(I)) +
+
+  # Triángulo rojo
+  geom_point(
+    data = actores,
+    aes(x = actor, y = percepcion),
+    shape = 2,
+    color = "red",
+    size = 4
+  ) +
+
+  # Cruz azul
+  geom_point(
+    data = actores,
+    aes(x = actor, y = consenso),
+    shape = 4,
+    color = "blue",
+    size = 4,
+    stroke = 1.2
+  ) +
+
+  labs(
+    title = "Distribución de grados por actor",
+    x = "Actor",
+    y = "Grado normalizado"
+  ) +
+
+  theme_minimal()
+
+```
+
+## e. Calcular la densidad de cada red de percepción y representar estos valores utilizando un histograma. Superponer una línea vertical que indique la densidad de la red de consenso. Analizar si las percepciones sobre la densidad de las relaciones están en concordancia con la densidad observada en el consenso.
+
+```{r densidad.e, echo=FALSE, fig.height=8, fig.width=10, message=FALSE, warning=FALSE}
+densidad <- c()
+for (i in 1:I) {
+  densidad[i] <- edge_density(graph = grafos21[[i]])
+}
+densidad <- as.data.frame(densidad)
+ggplot(data = densidad, aes(x=densidad))+
+  geom_histogram(col='gray20', fill='pink')+
+  geom_vline(
+    aes(
+      xintercept = edge_density(grafos21[[22]]),
+      color = "Consenso"
+    ),
+    linewidth = 1.2
+  ) +
+  scale_color_manual(
+    name = "",
+    values = c("Consenso" = "purple")
+  ) +
+  theme_minimal()
+```
+
+## f. Repetir el numeral anterior tanto para la transitividad como para la asortatividad.
+
+### Transitividad global
+
+```{r transitividad.e, echo=FALSE, fig.height=8, fig.width=10, message=FALSE, warning=FALSE}
+transitividad <- c()
+for (i in 1:I) {
+  transitividad[i] <- transitivity(graph = grafos21[[i]],type = 'global')
+}
+transitividad <- as.data.frame(transitividad)
+ggplot(data = transitividad, aes(x=transitividad))+
+  geom_histogram(col='gray20', fill='pink')+
+  geom_vline(
+    aes(
+      xintercept = transitivity(grafos21[[22]],type = 'global'),
+      color = "Consenso"
+    ),
+    linewidth = 1.2
+  ) +
+  scale_color_manual(
+    name = "",
+    values = c("Consenso" = "purple")
+  ) +
+  theme_minimal()
+```
+
+### Asortatividad
+
+```{r asortatividad.e, echo=FALSE, fig.height=8, fig.width=10, message=FALSE, warning=FALSE}
+asortatividad <- c()
+for (i in 1:I) {
+  asortatividad[i] <- assortativity_degree(graph = grafos21[[i]])
+}
+asortatividad <- as.data.frame(asortatividad)
+ggplot(data = asortatividad, aes(x=asortatividad))+
+  geom_histogram(col='gray20', fill='pink')+
+  geom_vline(
+    aes(
+      xintercept = assortativity_degree(grafos21[[22]]),
+      color = "Consenso"
+    ),
+    linewidth = 1.2
+  ) +
+  scale_color_manual(
+    name = "",
+    values = c("Consenso" = "purple")
+  ) +
+  theme_minimal()
+```
+
+## g. Segmentar la red de consenso aplicando distintos métodos de agrupamiento y visualizar los resultados obtenidos para cada método. Evaluar la calidad de las particiones generadas comparándolas con la partición basada en los departamentos a los que pertenecen los empleados, utilizando el Índice de Rand (RI) y el Índice de Rand ajustado (ARI). Analizar los valores obtenidos para determinar qué método de agrupamiento logra una mayor concordancia con la estructura departamental.
+
+```{r clusters, echo=FALSE, fig.height=8, fig.width=10, message=FALSE, warning=FALSE}
+library(ggforce) # Para clusters en ggplot
+clusters_lista <- list(
+  co=cluster_optimal,
+ clb=cluster_edge_betweenness,
+  cw=cluster_walktrap,
+  ci=cluster_infomap,
+ clp=cluster_label_prop
+)
+
+clusters_coords <- lapply(clusters_lista, \(f) f(krackfr_grafo))
+
+set.seed(1904)
+for (i in 1:length(clusters_coords)) {
+  clust <- clusters_coords[[i]]
+  V(grafo_tbl)$cluster <- as.factor(membership(clust))
+  p <- ggraph(grafo_tbl, layout = "kk") +
+  geom_edge_link(
+  alpha = 0.4,
+  arrow = arrow(length = unit(3, "mm")),
+  end_cap = circle(3, "mm")
+) +
+  geom_node_point(
+    aes(
+      shape = departamento,
+      color = grupo_edad
+    ),show.legend = FALSE,
+    size = 7
+  ) +
+    geom_mark_hull(
+      aes(
+        x = x,
+        y = y,
+        fill = cluster
+      ),
+      alpha = 0.15,
+      concavity = 2
+    ) +
+  geom_node_text(
+    aes(label = name),
+    repel = TRUE
+  ) +
+  scale_shape_manual(
+    values = c(16, 15, 17, 18, 8)
+  ) +
+  labs(
+      title = names(clusters_coords)[i],
+      color = "Cluster"
+    ) +
+
+    theme_void()
+
+  print(p)
+}
+
+```
+
+```{r validacion, echo=FALSE, message=FALSE, warning=FALSE}
+validacion <- data.frame(
+  Metodos=c('Rand','Rand ajustado')
+)
+for (i in 1:length(clusters_coords)) {
+  q <- compare(comm1 = dat_nodos$dept,
+               comm2 = clusters_coords[[i]]$membership,
+               method = "rand")
+  p <- compare(comm1 = dat_nodos$dept,
+               comm2 = clusters_coords[[i]]$membership,
+               method = "adjusted.rand")
+  cluster <- c(q,p)
+  validacion <- cbind(validacion,cluster)
+}
+colnames(validacion) <- c('Metodos',names(clusters_lista))
+
+validacion %>% 
+  kableExtra::kbl(caption='Validación por Rand y Rand ajustado', 
+                  digits=3) %>% 
+  kableExtra::kable_minimal()
+```
+
+
+# 2.
+
+El *Sistema HORUS* de la Universidad Nacional de Colombia es una plataforma de inteligencia de negocios que integra y visualiza la productividad científica y tecnológica de la institución. Utiliza datos de fuentes internas y externas, como SCOPUS, Google Scholar y el Repositorio Institucional UN, aplicando algoritmos de inteligencia artificial para estandarizar información y generar métricas en tableros de control. Esto facilita la toma de decisiones estratégicas y mejora la visibilidad de la producción académica de la UNAL. Considere la base de datos, que contiene un archivo comprimido con los grafos que representan las relaciones entre temáticas y docentes en todos los niveles de HORUS (Institución, Sede, Facultad y Departamento).
+
+
+## a. Utilizar los datos correspondientes a la Universidad Nacional de Colombia, Sede Bogotá, Facultad de Ciencias, Departamento de Estadística. A partir de la red bipartita $\textbf{A}$, construir la red binaria no dirigida de docentes mediante el producto matricial $\textbf{A}^T\textbf{A}$ o $\textbf{A}\textbf{A}^T$, según corresponda.
+
+```{r HORUS estadística, echo=FALSE}
+library(jsonlite)
+estadistica <- fromJSON("graph/UNAL_CIENCIAS_estadistica.json") 
+# Limpiando la base T_T
+estadistica[["links"]] <- estadistica[["links"]] %>% 
+  dplyr::filter(source!='2d4d5a17-7ef0-4fc4-8b25-d1af93445f50')
+estadistica[['nodes']] <- estadistica[["nodes"]] %>% 
+  dplyr::filter(id!='2d4d5a17-7ef0-4fc4-8b25-d1af93445f50')
+estadistica_grafo <- graph_from_data_frame(
+  d = estadistica[['links']],
+  vertices = estadistica[["nodes"]],
+  directed = FALSE
+)
+# Agregando si es autor o tema
+V(estadistica_grafo)$type <- V(estadistica_grafo)$name %in% estadistica[['links']]$target
+# Agregando pesos
+E(estadistica_grafo)$weight <- estadistica[['links']]$value
+# Matriz de adyacencia de una red bipartita
+A <- as_biadjacency_matrix(
+  estadistica_grafo,
+  attr = "weight"
+)
+#Los profesores son las filas por ende el producto matricial es AA^T
+profesores_estadistica <- A%*%t(A)
+red_profesores_estadistica <- graph_from_adjacency_matrix(profesores_estadistica,
+                                              weighted = TRUE,
+                                              mode = 'undirected')
+corrplot(
+  corr        = as.matrix(profesores_estadistica), 
+  is.corr = FALSE,
+  method      = "square", 
+  tl.pos = "n",
+  addgrid.col = "gray90", 
+  cl.pos      = "n"
+)
+```
+
+
+## b. Repetir el procedimiento anterior para los departamentos de Farmacia, Física, Geociencias, Matemáticas, Química.
+```{r HORUS CIENCIAS, echo=FALSE}
+farmacia <- fromJSON("graph/UNAL_CIENCIAS_farmacia.json")
+# Limpiando la base T_T
+farmacia[['links']] <- farmacia[['links']] %>% 
+  dplyr::filter(source!='a43e06fd-60e5-48c6-8a38-ed271b978ea4')
+farmacia[['nodes']] <- farmacia[['nodes']] %>% 
+  dplyr::filter(id!='a43e06fd-60e5-48c6-8a38-ed271b978ea4')
+farmacia_grafo <- graph_from_data_frame(
+  d = farmacia[['links']],
+  vertices = farmacia[['nodes']],
+  directed = FALSE
+)
+# Agregando si es autor o tema
+V(farmacia_grafo)$type <- V(farmacia_grafo)$name %in% farmacia[['links']]$target
+# Agregando pesos
+E(farmacia_grafo)$weight <- farmacia[['links']]$value
+# Matriz de adyacencia de una red bipartita
+A <- as_biadjacency_matrix(
+  farmacia_grafo,
+  attr = "weight"
+)
+#Los profesores son las filas por ende el producto matricial es AA^T
+profesores_farmacia <- A%*%t(A)
+red_profesores_farmacia <- graph_from_adjacency_matrix(profesores_farmacia,
+                                              weighted = TRUE,
+                                              mode = 'undirected')
+#-----------------------------------------------------------------------------
+fisica <- fromJSON("graph/UNAL_CIENCIAS_fisica.json")
+# Limpiando la base T_T
+fisica[['links']] <- fisica[['links']] %>% 
+  dplyr::filter(source!='425bda01-002d-4b05-95fb-71196da8736e')
+fisica[['nodes']] <- fisica[['nodes']] %>% 
+  dplyr::filter(id!='425bda01-002d-4b05-95fb-71196da8736e')
+fisica_grafo <- graph_from_data_frame(
+  d = fisica[['links']],
+  vertices = fisica[['nodes']],
+  directed = FALSE
+)
+# Agregando si es autor o tema
+V(fisica_grafo)$type <- V(fisica_grafo)$name %in% fisica[['links']]$target
+# Agregando pesos
+E(fisica_grafo)$weight <- fisica[['links']]$value
+# Matriz de adyacencia de una red bipartita
+A <- as_biadjacency_matrix(
+  fisica_grafo,
+  attr = "weight"
+)
+#Los profesores son las filas por ende el producto matricial es AA^T
+profesores_fisica <- A%*%t(A)
+red_profesores_fisica <- graph_from_adjacency_matrix(profesores_fisica,
+                                              weighted = TRUE,
+                                              mode = 'undirected')
+#-----------------------------------------------------------------------------
+geociencias <- fromJSON("graph/UNAL_CIENCIAS_geociencias.json")
+# Limpiando la base T_T
+geociencias[['links']] <- geociencias[['links']] %>% 
+  dplyr::filter(source!='f9f44c87-afce-4bd3-a5aa-4988976fa40b')
+geociencias[['nodes']] <- geociencias[['nodes']] %>% 
+  dplyr::filter(id!='f9f44c87-afce-4bd3-a5aa-4988976fa40b')
+geociencias_grafo <- graph_from_data_frame(
+  d = geociencias[['links']],
+  vertices = geociencias[['nodes']],
+  directed = FALSE
+)
+# Agregando si es autor o tema
+V(geociencias_grafo)$type <- V(geociencias_grafo)$name %in% geociencias[['links']]$target
+# Agregando pesos
+E(geociencias_grafo)$weight <- geociencias[['links']]$value
+# Matriz de adyacencia de una red bipartita
+A <- as_biadjacency_matrix(
+  geociencias_grafo,
+  attr = "weight"
+)
+#Los profesores son las filas por ende el producto matricial es AA^T
+profesores_geociencias <- A%*%t(A)
+red_profesores_geociencias <- graph_from_adjacency_matrix(profesores_geociencias,
+                                              weighted = TRUE,
+                                              mode = 'undirected')
+#-----------------------------------------------------------------------------
+matematicas <- fromJSON("graph/UNAL_CIENCIAS_matematicas.json")
+# Limpiando la base T_T
+matematicas[['links']] <- matematicas[['links']] %>% 
+  dplyr::filter(source!='9b94b0ad-bff6-4f20-ae80-170d728a6b9c')
+matematicas[['nodes']] <- matematicas[['nodes']] %>% 
+  dplyr::filter(id!='9b94b0ad-bff6-4f20-ae80-170d728a6b9c')
+matematicas_grafo <- graph_from_data_frame(
+  d = matematicas[['links']],
+  vertices = matematicas[['nodes']],
+  directed = FALSE
+)
+# Agregando si es autor o tema
+V(matematicas_grafo)$type <- V(matematicas_grafo)$name %in% matematicas[['links']]$target
+# Agregando pesos
+E(matematicas_grafo)$weight <- matematicas[['links']]$value
+# Matriz de adyacencia de una red bipartita
+A <- as_biadjacency_matrix(
+  matematicas_grafo,
+  attr = "weight"
+)
+#Los profesores son las filas por ende el producto matricial es AA^T
+profesores_matematicas <- A%*%t(A)
+red_profesores_matematicas <- graph_from_adjacency_matrix(profesores_matematicas,
+                                              weighted = TRUE,
+                                              mode = 'undirected')
+#-----------------------------------------------------------------------------
+quimica <- fromJSON("graph/UNAL_CIENCIAS_quimica.json")
+# Limpiando la base T_T
+quimica[['links']] <- quimica[['links']] %>% 
+  dplyr::filter(source!='c290f8c7-1919-44c2-8e05-111249363db7')
+quimica[['nodes']] <- quimica[['nodes']] %>% 
+  dplyr::filter(id!='c290f8c7-1919-44c2-8e05-111249363db7')
+quimica_grafo <- graph_from_data_frame(
+  d = quimica[['links']],
+  vertices = quimica[['nodes']],
+  directed = FALSE
+)
+# Agregando si es autor o tema
+V(quimica_grafo)$type <- V(quimica_grafo)$name %in% quimica[['links']]$target
+# Agregando pesos
+E(quimica_grafo)$weight <- quimica[['links']]$value
+# Matriz de adyacencia de una red bipartita
+A <- as_biadjacency_matrix(
+  quimica_grafo,
+  attr = "weight"
+)
+#Los profesores son las filas por ende el producto matricial es AA^T
+profesores_quimica <- A%*%t(A)
+red_profesores_quimica <- graph_from_adjacency_matrix(profesores_quimica,
+                                              weighted = TRUE,
+                                              mode = 'undirected')
+
+profesores <- list(
+  profesores_farmacia,
+  profesores_fisica,
+  profesores_geociencias,
+  profesores_matematicas,
+  profesores_quimica
+)
+
+names(profesores) <- c('Farmacia',
+                       'Física',
+                       'Geociencias',
+                       'Matemáticas',
+                       'Química')
+for (i in 1:length(profesores)) {
+  corrplot(
+  corr        = as.matrix(profesores[[i]]), 
+  is.corr = FALSE,
+  method      = "square", 
+  tl.pos = "n",
+  addgrid.col = "gray90", 
+  cl.pos      = "n",
+  main = names(profesores)[i]
+  )
+}
+
+```
+
+## c. Crear visualizaciones detalladas y decoradas de todas las redes, destacando sus características clave. Presentar los resultados en un formato comparativo para facilitar el análisis de similitudes y diferencias entre las redes.
+
+```{r gráfico profesores , echo=FALSE}
+set.seed(1019)
+redes_profesores <- list(
+  red_profesores_estadistica,
+  red_profesores_farmacia,
+  red_profesores_fisica,
+  red_profesores_geociencias,
+  red_profesores_matematicas,
+  red_profesores_quimica
+)
+names(redes_profesores) <- c('Estadística',
+                             'Farmacia',
+                             'Física',
+                             'Geociencias',
+                             'Matemáticas',
+                             'Química')
+colores <- rainbow(length(redes_profesores))
+k <- c(1,2)
+for (i in 1:length(redes_profesores)) {
+  grafo_tbl <- as_tbl_graph(redes_profesores[[i]]) %>% 
+  activate(nodes) 
+p <- ggraph(grafo_tbl, layout = "kk") +
+  # aristas
+  geom_edge_link(
+    aes(width = weight),
+    alpha = 0.3,
+    colour = "gray60"
+  ) +
+
+  # nodos
+  geom_node_point(
+    size = 5,
+    colour = colores[i]
+  ) +
+
+  # etiquetas
+  geom_node_text(
+    aes(label = ''),
+    repel = TRUE,
+    size = 3
+  ) +
+  scale_color_manual(
+      values = colores[k]
+    ) +
+
+  scale_edge_width(range = c(0.2, 2)) +
+  ggtitle(names(redes_profesores)[i])+
+
+  theme_void()
+print(p)
+
+}
+
+```
+
+## d. Caracterizar cada una de las redes a nivel local y estructural, considerando métricas como la distancia, la centralidad, la cohesión, la conectividad y el agrupamiento. Utilizar todas las métricas disponibles para proporcionar un análisis exhaustivo de las propiedades de cada red.
+
+### Distancia
+
+```{r 2d distancia, echo=FALSE}
+tabla2ddistancia <- data.frame(
+  'Medidas/departamento'=c("Orden",
+                           "Tamaño",
+                           "Diámetro del grafo",
+                           "Camino del diámetro",
+                           "distancia media")
+                           )
+
+for (i in 1:length(redes_profesores)) {
+  df <- data.frame(
+    valor = c(vcount(redes_profesores[[i]]),
+                                ecount(redes_profesores[[i]]),
+                                diameter(redes_profesores[[i]], 
+                                         weights = NA),
+                              paste0(names(get_diameter(redes_profesores[[i]],
+                                                          weights = NA)),
+                                       collapse = ";"),
+                                round(mean_distance(redes_profesores[[i]]),3))
+  )
+  names(df) <- names(redes_profesores)[i]
+  tabla2ddistancia <- cbind(tabla2ddistancia,df)
+}
+
+tabla2ddistancia %>% 
+  kableExtra::kbl(caption='Resultados', 
+                  digits=3) %>% 
+  kableExtra::kable_minimal()
+```
+
+### Centralidad
+
+```{r 8b centralidad, echo=FALSE}
+# medidas de centralidad
+medidas_2dcentralidad <- data.frame(
+  'Medidas/Departamento'= c('Grado','Cercanía','Intermediación','Propio')
+)
+
+for (i in 1:length(redes_profesores)) {
+  dc <- degree(redes_profesores[[i]], normalized = T)
+  cc <- closeness(redes_profesores[[i]], normalized = T)
+  bc <- betweenness(redes_profesores[[i]], normalized = T)
+  ec <- eigen_centrality(redes_profesores[[i]])$vector
+  
+  df <- data.frame(
+    Media=c(mean(dc),mean(cc, na.rm = T),mean(bc), mean(ec)),
+      'Desv.Est.' = c(sd(dc), sd(cc, na.rm = T), sd(bc), sd(ec))
+  )
+  names(df) <- c(paste(names(df)[1],names(redes_profesores)[i], sep = " " ),
+                 paste(names(df)[2],names(redes_profesores)[i], sep = " " ))
+  medidas_2dcentralidad <- cbind(medidas_2dcentralidad,df)
+}
+
+names(medidas_2dcentralidad) <- c('Medidas / Departamentos',
+                                  rep(c('Media','Desviación Estándar'),6))
+
+medidas_2dcentralidad %>% 
+  kableExtra::kbl(
+    caption = "Resultados",
+    digits = 3
+  ) %>% 
+  kableExtra::add_header_above(
+    header = c(
+      " " = 1,
+      stats::setNames(
+        rep(2, length(redes_profesores)),
+        names(redes_profesores)
+      )
+    )
+  ) %>% 
+  kableExtra::kable_minimal()
+```
+
+
+### Cohesión
+
+
+```{r 8b cohesión, echo=FALSE}
+# frecuencias de clanes
+tabla_cliques <- list()
+for (i in 1:length(redes_profesores)) {
+  tabla_cliques[[i]] <- sapply(
+  X = 1:clique_num(redes_profesores[[1]]),
+  FUN = \(k) {
+    igraph::count_max_cliques(redes_profesores[[1]], min = k, max = k)
+  }
+)
+
+tabla_cliques[[i]] <- data.frame(
+  clique=seq(1:length(tabla_cliques[[i]])),
+  frecuencia=tabla_cliques[[i]]
+)
+
+tabla_cliques[[i]] <- tabla_cliques[[i]] %>% filter(frecuencia!=0)
+}
+
+densidad2d <- data.frame(Valor='Densidad')
+
+for (j in 1:length(redes_profesores)) {
+  clanes_maximal <- lapply(seq_along(largest_cliques(redes_profesores[[j]])), function(k){
+  i <- largest_cliques(redes_profesores[[j]])[[k]]
+  clan_maximal <- induced_subgraph(graph = redes_profesores[[j]],vids = i)
+  plot(clan_maximal, main=paste0("clan maximal ", j),
+       vertex.size        = 50,
+     vertex.label.color = "black",
+     vertex.color       = colores[j], 
+     vertex.frame.color = "black",
+     edge.color         = "gray30")
+})
+  df <- data.frame(densidad=edge_density(redes_profesores[[j]]))
+  names(df) <- names(redes_profesores)[j]
+  densidad2d <- cbind(densidad2d,df)
+}
+
+names(densidad2d)[1] <- ''
+names(tabla_cliques) <- c('Tamaño clique','cantidad de cliques')
+
+for (i in 1:length(redes_profesores)) {
+  print(
+    tabla_cliques[[i]] %>% kableExtra::kbl(
+  caption = paste("Tamaños de clanes y su frecuencia para",
+                  names(redes_profesores)[i],sep = ' '), 
+  digits = 3) %>% 
+  kableExtra::kable_minimal()
+  )
+}
+
+
+
+densidad2d %>% 
+  kableExtra::kbl(
+    caption = "Densidad de los grafos de los departamentos",
+    digits = 3
+  ) %>% 
+  kableExtra::kable_minimal()
+```
+
+### Conectividad
+
+```{r 8b conectividad, echo=FALSE}
+# frecuencias de clanes
+#table(sapply(X = cliques(graph = g_sym, min = 1,
+ #                        max = clique_num(graph = g_sym)),
+  #           FUN = length))
+tabla.2dconectividad <- data.frame(Medidas=c(
+  "¿Está conectado", 
+  "Conectivdidad nodal", 
+  "Conectividad por aristas", 
+  "Puntos de artículación"
+))
+
+for (i in 1:length(redes_profesores)) {
+  df <- data.frame(
+    Valores=c(is_connected(redes_profesores[[i]]),
+             vertex_connectivity(redes_profesores[[i]]),
+             edge_connectivity(redes_profesores[[i]]),
+             paste(names(articulation_points(redes_profesores[[i]])),
+                   collapse = ";"))
+  )
+  names(df) <- names(redes_profesores)[i]
+  tabla.2dconectividad <- cbind(tabla.2dconectividad,df)
+}
+
+tabla.2dconectividad %>% 
+  kableExtra::kable(caption = 'Conectividad',
+                    digits = 3) %>% 
+  kableExtra::kable_minimal()
+
+```
+
+
+### Agrupamiento
+
+
+```{r 8b agrupamiento, echo=FALSE, message=FALSE, warning=FALSE}
+tabla.2dtransitividadg <- data.frame(Medidas=c('Transitividad global'))
+
+for (i in 1:length(redes_profesores)) {
+  df <- data.frame(
+    valores=transitivity(graph = redes_profesores[[i]], type = "global")
+  )
+  names(df) <- names(redes_profesores)[i]
+  tabla.2dtransitividadg <- cbind(tabla.2dtransitividadg,df)
+}
+names(tabla.2dtransitividadg)[1] <- ' ' 
+tabla.2dtransitividadg %>% 
+  kableExtra::kable(caption = 'Transitividad global',
+                    digits = 3) %>% 
+  kableExtra::kable_minimal()
+
+tabla.2dtransitividadl <- lapply(
+  redes_profesores,
+  function(g) {
+    
+    valores <- transitivity(
+      graph = g,
+      type = "local"
+    )
+    
+    valores[is.nan(valores)] <- NA
+    
+    return(valores)
+  }
+)
+
+for (i in 1:length(tabla.2dtransitividadl)) {
+  trans_global <- transitivity(
+    graph = redes_profesores[[i]], 
+    type = 'global'
+  )
+  df <- data.frame(
+    transitividad=tabla.2dtransitividadl[[i]]
+  )
+  p <- ggplot2::ggplot(data = df,
+                  mapping = aes(x = transitividad))+
+    ggplot2::geom_histogram(col ='gray24', fill = colores[i])+
+    ggplot2::labs(
+    title = paste("Distribución de la transitividad local en el departamento de", names(tabla.2dtransitividadl)[i],sep = ' '),
+    x = "Transitividad local",
+    y = "Frecuencia"
+  ) +
+    geom_vline(
+    aes(
+      xintercept = trans_global,
+      color = "Global"
+    ),
+    linewidth = 1.2
+  )   +
+    annotate(
+      "text",
+      x = trans_global,
+      y = Inf,
+      label = round(trans_global, 3),
+      vjust = 2,
+      color = "black"
+    ) +
+  scale_color_manual(
+    name = "",
+    values = c("Global" = "gray49")
+  ) +
+  theme_minimal()
+  print(p)
+}
+
+
+
+clusters_lista <- list(
+  kc=cluster_fast_greedy,
+  clb=cluster_edge_betweenness,
+  cw=cluster_walktrap,
+  ci=cluster_infomap
+)
+
+clusters_coords <- list()
+layout_kk <- list()
+for (i in 1:length(redes_profesores)) {
+  clusters_coords[[i]] <- lapply(clusters_lista, 
+                                 \(f) f(redes_profesores[[i]]))
+set.seed(831)
+layout_kk[[i]] <- layout_with_kk(redes_profesores[[i]])
+}
+
+par(mfrow=c(1,2), oma = c(0, 0, 3, 0))
+set.seed(2103)
+
+for (i in seq_along(clusters_coords)) {
+
+  for (j in seq_along(clusters_coords[[i]])) {
+
+    clust <- clusters_coords[[i]][[j]]
+
+    ord <- order(
+      sizes(clust),
+      decreasing = TRUE
+    )[1:min(10, length(sizes(clust)))]
+    
+    
+
+    plot(
+      x = clust,
+      y = redes_profesores[[i]],
+      layout = layout_kk[[i]],
+      vertex.size = 12,
+      vertex.label = NA
+    )
+
+    plot.new()
+    
+    legend(
+      "center",
+      legend = c(
+        "Top 10 clusters:",
+        paste0(
+          " - Cluster ",
+          ord,
+          " (n = ",
+          sizes(clust)[ord],
+          ")"
+        )
+      ),
+      col = c(
+        NA,
+        rainbow(length(sizes(clust)))[ord]
+      ),
+      pch = c(
+        NA,
+        rep(19, length(ord))
+      ),
+      pt.cex = 1.5,
+      bty = "n"
+    )
+    mtext(
+  paste("Departamento de", names(redes_profesores)[i],
+        "cluster", names(clusters_lista)[j]),
+  outer = TRUE,
+  side = 3,
+  line = 1.5,
+  cex = 1.1
+)
+  }
+}
+  
+
+
+```
+
+## e. Repetir el análisis para toda la sede Bogotá.
+```{r HORUS Bogotá, include=FALSE}
+bogota <- fromJSON("graph/UNAL_bogota.json")
+bogota[["links"]] <- bogota[["links"]] %>% 
+  dplyr::filter(source!='1bcd56e4-2d64-4516-9488-3b3f1970c02a')
+bogota[['nodes']] <- bogota[["nodes"]] %>% 
+  dplyr::filter(id!='1bcd56e4-2d64-4516-9488-3b3f1970c02a')
+
+links_tipo <- bogota[["links"]] |>
+  merge(
+    bogota[["nodes"]][, c("id", "type")],
+    by.x = "source",
+    by.y = "id"
+  ) |>
+  rename(source_type = type) |>
+  merge(
+    bogota[["nodes"]][, c("id", "type")],
+    by.x = "target",
+    by.y = "id"
+  ) |>
+  rename(target_type = type)
+
+author_uab <- links_tipo %>%
+  dplyr::filter(
+    source_type == "uab",
+    target_type == "author"
+  ) %>%
+  dplyr::select(
+    uab = source,
+    author = target
+  )
+
+faculty_uab <- links_tipo %>%
+  dplyr::filter(
+    source_type == "faculty",
+    target_type == "uab"
+  ) %>%
+  dplyr::select(
+    faculty = source,
+    uab = target
+  )
+
+author_faculty <- author_uab %>%
+  dplyr::left_join(
+    faculty_uab,
+    by = "uab"
+  )
+
+node_lookup <- bogota[["nodes"]] %>%
+  dplyr::select(id, label, type)
+
+author_faculty <- author_faculty %>%
+  dplyr::left_join(
+    node_lookup,
+    by = c("author" = "id")
+  ) %>%
+  dplyr::rename(author_name = label) %>%
+  dplyr::left_join(
+    node_lookup,
+    by = c("faculty" = "id")
+  ) %>%
+  dplyr::rename(faculty_name = label)
+
+links_topic <- links_tipo %>%
+  dplyr::filter(
+    source_type == "author",
+    target_type == "topic"
+  )
+
+nodes_topic <- bogota[["nodes"]] %>%
+  dplyr::filter(type %in% c("author", "topic"))
+
+bogota_grafo <- graph_from_data_frame(
+  d = links_topic,
+  vertices = nodes_topic,
+  directed = FALSE
+)
+
+# Agregando si es autor o tema
+V(bogota_grafo)$type <-
+  V(bogota_grafo)$name %in% nodes_topic$id[nodes_topic$type == "topic"]
+# Agregando pesos
+E(bogota_grafo)$weight <- links_topic$value
+
+A <- as_biadjacency_matrix(
+  bogota_grafo,
+  attr = "weight"
+)
+#Los profesores son las filas por ende el producto matricial es AA^T
+profesores_bogota <- A%*%t(A)
+red_profesores_bogota <- graph_from_adjacency_matrix(profesores_bogota,
+                                              weighted = TRUE,
+                                              mode = 'undirected')
+
+```
+
+```{r visualización bogota}
+grafo_tbl <- as_tbl_graph(red_profesores_bogota) %>% 
+  activate(nodes) 
+ggraph(grafo_tbl, layout = "kk") +
+  # aristas
+  geom_edge_link(
+    aes(width = weight),
+    alpha = 0.3,
+    colour = "gray60"
+  ) +
+
+  # nodos
+  geom_node_point(
+    size = 5,
+    colour = 'chocolate3'
+  ) +
+
+  # etiquetas
+  geom_node_text(
+    aes(label = ''),
+    repel = TRUE,
+    size = 3
+  ) +
+  scale_color_manual(
+      values = 'deeppink4'
+    ) +
+
+  scale_edge_width(range = c(0.2, 2)) +
+  ggtitle('Sede Bogotá')+
+
+  theme_void()
+```
+
+
+## f. Interpretar los hallazgos obtenidos.
+
+# 3.
+
+Este caso se basa en la preimpresión del artículo A Network-Based Approach to Characterize Twenty-First-Century Populism in Colombia (García-Arteaga y Pellegrino, 2021). El artículo aborda el populismo como “un fenómeno político de antiliberalismo democrático centrado en la figura de un líder fuerte” y realiza, entre otros aspectos, una revisión del populismo y su contexto en Colombia, destacando la posición e influencia de Álvaro Uribe como líder populista. Para ello, se analizan las conexiones de figuras prominentes del panorama político colombiano reciente, considerando relaciones de trabajo, alianzas, rivalidades, amistades y vínculos familiares, contenidas en los archivos nodes.csv. Según la Sección 2 del artículo, los datos fueron recolectados mediante herramientas de web scraping de la sección “Quién es quién” del medio colombiano independiente La Silla Vacía. El análisis identifica que las redes de trabajo (work-edges.csv) y de alianzas (alliance-edges.csv) son las más relevantes, y sus componentes conexas constituyen la principal fuente de información para el estudio.
+
+## a. Analizar cada una de las redes tanto a nivel local como estructural, utilizando métricas como distancia, centralidad, cohesión, conectividad y agrupamiento. Emplear todas las métricas disponibles para realizar un análisis detallado y completo de las características y propiedades de cada red.
+
+## b. Interpretar los hallazgos obtenidos.
+
+# 4. Considere el conjunto de datos disponible en el archivo traders.RData (139 KB). Este archivo contiene un arreglo de dimensión $T\times I\times I$, donde se registran datos relacionales de $I$ comerciantes (traders) a lo largo de $T$ semanas. Este conjunto consta de $T=201$ redes binarias dirigidas de tamaño $I=71$, representando las transacciones en el mercado de futuros de gas natural en la Bolsa Mercantil de Nueva York (NYMEX) durante el período de enero de 2005 a diciembre de 2008. Cada red semanal establece un vínculo dirigido entre un comerciante $A$ y un comerciante $B$ si hubo al menos una transacción en la que $A$ actuó como vendedor y $B$ como comprador (Betancourt et al., 2020). Hasta el 5 de septiembre de 2006 (semana 83), los futuros de gas natural se negociaron exclusivamente mediante operaciones tradicionales a gritos. A partir de esa fecha, se introdujo una plataforma de negociación electrónica como método alternativo. Este caso de estudio tiene como objetivo investigar si la implementación de esta plataforma provocó un cambio estructural significativo en el mercado de futuros de gas natural (Betancourt, B., Rodríguez, A., & Boyd, N. (2020). Modelling and prediction of financial trading networks: An application to the New York Mercantile Exchange natural gas futures market. Journal of the Royal Statistical Society Series C: Applied Statistics, 69(1)).
+
+## a. Para cada red en cada semana, calcular métricas clave como la densidad, el coeficiente de agrupamiento, la asortatividad, la reciprocidad, la distancia geodésica promedio, el tamaño de la componente gigante, el grado de salida promedio y el grado de entrada promedio. Representar las series de tiempo generadas para cada métrica, incorporando una línea vertical en la semana 83, una línea horizontal en la mediana de los valores de la serie antes de la semana 83 (inclusive) y otra línea horizontal en la mediana de los valores posteriores a esta semana. Además, aplicar la prueba de Mann-Whitney para comparar los valores de cada serie antes y después de la semana 83. Presentar los resultados de estas comparaciones en una tabla, indicando las diferencias estadísticas identificadas.
+
+## b. Para cada red en cada semana, realizar una segmentación de comerciantes utilizando un método de agrupamiento jerárquico. Determinar, para cada caso, el número de grupos formados y calcular la modularidad de las particiones obtenidas. Repetir el análisis anterior considerando estos dos nuevos estadísticos estructurales de agrupamiento como parte del conjunto de métricas a evaluar. Antes de realizar el proceso de agrupamiento, simetrizar las redes débilmente, de manera que $i \leftrightarrow j$ si $i\rightarrow j$ o $i\leftarrow j$.
+
+## c. Sea $Y_t=[y_{i,j,t}]$ la matriz de adyacencia de dimensión $I\times I$ asociada con la red de transacciones en el instante $t$, para $t=1,…,T$. Además, sean $Y_0=[y_{i,j}^{0}]$ y $Y_1=[y^{1}_{i,j}]$ las matrices de adyacencia que representan las transacciones de consenso antes (incluyendo) y después de la semana 83, respectivamente, donde:
+$$
+y^{k}_{i,j}=
+\begin{cases}
+1, \text{si }\frac{1}{T_{k}}\sum_{t=1}^{T_{k}}y_{i.j.t}\geq 0.5 \\
+0, \text{en otro caso},
+\end{cases}
+$$
+y $T_{k}$ es el número de instantes de tiempo en el período $k$, con $k=0,1$. Calcular las medidas estructurales descritas en el numeral a. para las redes asociadas con $Y_0$ y $Y_1$, y presentar los resultados en una tabla comparativa.
+
+## d. Para las redes asociadas con $Y_0=[y^{0}_{i,j}]$ y $Y^{1}=[y^{1}_{i,j}]$, realizar una segmentación de comerciantes utilizando un método de agrupamiento jerárquico. Previo al proceso de agrupamiento, simetrizar las redes débilmente, estableciendo $i \leftrightarrow j$ si $i\rightarrow j$ o $i\leftarrow j$. Visualizar la componente gigante de ambas redes empleando un diseño (layout) adecuado, donde el tamaño de los vértices sea proporcional a su fuerza (vertex strength) y los colores indiquen las comunidades detectadas.
+
+## e. Interpretar los resultados obtenidos.
+
+# 5.
+
+Considere las acciones de tutela disponibles en la página de la Relatoría de la Corte Constitucional de Colombia (Relatoría de la Corte Constitucional). Según la Corte, los derechos más protegidos mediante tutelas son, en primer lugar, el derecho de petición, seguido del derecho a la salud y, finalmente, el derecho al debido proceso.
+
+## a. Una vez en la pagina, en el buscador principal escriba derecho a la aslud y filtre la fecha para todas aquelas tutelas resueltas en el 2004 (fecha de providencia desde 01/01/2004) hasta el dia 13/12/24. Luego, incie la busqueda. En la parte izquierda de la pagina encontrara filtros adicionales. Asi, en la sección Providencia filtre por Tutela y a continuacion exporte los resultados enexcel utilizando el boton verde que dice Exportar resultados en EXCEL. A la hora de hacer este proceso le deben resultar 158 providencias. CUando exporte los resultados escojola opcion Seleccionar Todas respecto a la informacion a exportar. Este proceso descargara en su computador un archivo con raiz “relatoria_corte_Constitucional” seguido por la fecha del dia de la descarga. ahora consolidar un archivo de texto plano en el que consigne todo el texto dado en la columna denominada “sintesis”.
+
+## b. Repetir el procedimiento descrito en el numeral a. para “derecho de petición” en 2024.
+
+## c. Repetir el procedimiento descrito en el numeral a. para “debido proceso” en 2024.
+
+## d. Realizar un análisis exhaustivo del texto relacionado con estos derechos empleando técnicas de redes sociales (no es necesario hacer un análsis de sentimiento). Comparar los resultados obtenidos y presentarlos de manera clara y estructurada, destacando las similitudes, diferencias y patrones relevantes.
+
+## e. Repetir el análisis para los años 2019, 2020, 2021, 2022 y 2023. *Importante:* al aplicar el filtro de fechas, asegúrese de abarcar todo el año completo para cada caso.
+
+## f. Interpretar los resultados obtenidos.
+
+# 6. 
+
+Considere la novela Cien años de soledad de Gabriel García Márquez, en su versión en español disponible en este enlace. Realice un análisis exhaustivo de la obra por capítulos, empleando técnicas de análisis de sentimientos y análisis de redes sociales para realizar comparaciones entre capítulos. Además, lleve a cabo un análisis de tópicos utilizando el modelo LDA (Latent Dirichlet Allocation), estructurando el corpus a partir de los capítulos de la novela. Para el análisis de tópicos, puede tomar como referencia el enfoque descrito en el capítulo 6 del libro Text Mining with R: A Tidy Approach (2017) de Julia Silge y David Robinson.
+
+# 7. 
+
+Sintetizar y replicar el Capítulo 10 de Luke, D. A. (2015).
+
+
+*Para la elaboración de este trabajo se utilizó inteligencia artificial como herramienta de apoyo, con el objetivo de mejorar la visualización de los gráficos y optimizar la redacción de los textos*
