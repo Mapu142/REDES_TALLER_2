@@ -882,7 +882,7 @@ tabla2ddistancia %>%
 
 ### Centralidad
 
-```{r 8b centralidad, echo=FALSE}
+```{r 2d centralidad, echo=FALSE}
 # medidas de centralidad
 medidas_2dcentralidad <- data.frame(
   'Medidas/Departamento'= c('Grado','Cercanía','Intermediación','Propio')
@@ -927,14 +927,14 @@ medidas_2dcentralidad %>%
 ### Cohesión
 
 
-```{r 8b cohesión, echo=FALSE}
+```{r 2d cohesión, echo=FALSE}
 # frecuencias de clanes
 tabla_cliques <- list()
 for (i in 1:length(redes_profesores)) {
   tabla_cliques[[i]] <- sapply(
-  X = 1:clique_num(redes_profesores[[1]]),
+  X = 1:clique_num(redes_profesores[[i]]),
   FUN = \(k) {
-    igraph::count_max_cliques(redes_profesores[[1]], min = k, max = k)
+    igraph::count_max_cliques(redes_profesores[[i]], min = k, max = k)
   }
 )
 
@@ -989,7 +989,7 @@ densidad2d %>%
 
 ### Conectividad
 
-```{r 8b conectividad, echo=FALSE}
+```{r 2d conectividad, echo=FALSE}
 # frecuencias de clanes
 #table(sapply(X = cliques(graph = g_sym, min = 1,
  #                        max = clique_num(graph = g_sym)),
@@ -1024,7 +1024,7 @@ tabla.2dconectividad %>%
 ### Agrupamiento
 
 
-```{r 8b agrupamiento, echo=FALSE, message=FALSE, warning=FALSE}
+```{r 2d agrupamiento, echo=FALSE, message=FALSE, warning=FALSE}
 tabla.2dtransitividadg <- data.frame(Medidas=c('Transitividad global'))
 
 for (i in 1:length(redes_profesores)) {
@@ -1272,39 +1272,315 @@ red_profesores_bogota <- graph_from_adjacency_matrix(profesores_bogota,
 
 ```
 
-```{r visualización bogota}
-grafo_tbl <- as_tbl_graph(red_profesores_bogota) %>% 
-  activate(nodes) 
+```{r visualización bogota, echo=FALSE}
+grafo_tbl <- as_tbl_graph(red_profesores_bogota) %>%
+  activate(edges) %>%  group_by(from) %>%
+  slice_max(weight, n = 3) %>%
+  ungroup()
 ggraph(grafo_tbl, layout = "kk") +
-  # aristas
-  geom_edge_link(
+  geom_edge_link0(
     aes(width = weight),
-    alpha = 0.3,
+    alpha = 0.2,
     colour = "gray60"
   ) +
-
-  # nodos
   geom_node_point(
-    size = 5,
-    colour = 'chocolate3'
+    size = 2,
+    colour = "chocolate3"
   ) +
-
-  # etiquetas
-  geom_node_text(
-    aes(label = ''),
-    repel = TRUE,
-    size = 3
-  ) +
-  scale_color_manual(
-      values = 'deeppink4'
-    ) +
-
-  scale_edge_width(range = c(0.2, 2)) +
-  ggtitle('Sede Bogotá')+
-
+  scale_edge_width(range = c(0.1, 1)) +
+  ggtitle("Sede Bogotá") +
   theme_void()
 ```
 
+
+### Distancia
+
+```{r 2e distancia, echo=FALSE}
+tabla2edistancia <- data.frame(
+  'Medidas/departamento'=c("Orden",
+                           "Tamaño",
+                           "Diámetro del grafo",
+                           "Camino del diámetro",
+                           "distancia media")
+                           )
+
+df <- data.frame(
+    valor = c(vcount(red_profesores_bogota),
+                                ecount(red_profesores_bogota),
+                                diameter(red_profesores_bogota, 
+                                         weights = NA),
+                              paste0(names(get_diameter(red_profesores_bogota,
+                                                          weights = NA)),
+                                       collapse = ";"),
+                                round(mean_distance(red_profesores_bogota),3))
+  )
+  tabla2ddistancia <- cbind(tabla2edistancia,df)
+
+
+tabla2edistancia %>% 
+  kableExtra::kbl(caption='Resultados', 
+                  digits=3) %>% 
+  kableExtra::kable_minimal()
+```
+
+### Centralidad
+
+```{r 2e centralidad, echo=FALSE}
+# medidas de centralidad
+medidas_2ecentralidad <- data.frame(
+  'Medidas'= c('Grado','Cercanía','Intermediación','Propio')
+)
+
+dc <- degree(red_profesores_bogota, normalized = T)
+cc <- closeness(red_profesores_bogota, normalized = T)
+bc <- betweenness(red_profesores_bogota, normalized = T)
+ec <- eigen_centrality(red_profesores_bogota)$vector
+  
+df <- data.frame(
+    Media=c(mean(dc),mean(cc, na.rm = T),mean(bc), mean(ec)),
+      'Desv.Est.' = c(sd(dc), sd(cc, na.rm = T), sd(bc), sd(ec))
+  )
+medidas_2ecentralidad <- cbind(medidas_2ecentralidad,df)
+
+
+names(medidas_2ecentralidad) <- c('Medidas',
+                                  'Media','Desviación Estándar')
+
+medidas_2ecentralidad %>% 
+  kableExtra::kbl(
+    caption = "Resultados",
+    digits = 3
+  ) %>% 
+  kableExtra::kable_minimal()
+```
+
+
+### Cohesión
+
+
+```{r 2e cohesión, echo=FALSE}
+# frecuencias de clanes
+tabla_cliques2e <- sapply(
+  X = 1:clique_num(red_profesores_bogota),
+  FUN = \(k) {
+    igraph::count_max_cliques(red_profesores_bogota, min = k, max = k)
+  }
+)
+
+
+
+tabla_cliques2e <- tabla_cliques2e %>% filter(frecuencia!=0)
+
+
+densidad2e <- data.frame(Valor='Densidad')
+
+clanes_maximal <- lapply(seq_along(largest_cliques(red_profesores_bogota)), function(k){
+i <- largest_cliques(red_profesores_bogota)[[k]]
+clan_maximal <- induced_subgraph(graph = red_profesores_bogota,vids = i)
+plot(clan_maximal, main=paste0("clan maximal ", k),
+       vertex.size        = 50,
+     vertex.label.color = "black",
+     vertex.color       = 'pink1', 
+     vertex.frame.color = "black",
+     edge.color         = "gray30")
+})
+df <- data.frame(densidad=edge_density(red_profesores_bogota))
+densidad2d <- cbind(densidad2e,df)
+
+
+names(tabla_cliques) <- c('Tamaño clique','cantidad de cliques')
+
+tabla_cliques2e%>% kableExtra::kbl(
+  caption = "Tamaños de clanes y su frecuencia para", 
+  digits = 3) %>% 
+  kableExtra::kable_minimal()
+
+
+
+
+
+densidad2e %>% 
+  kableExtra::kbl(
+    caption = "Densidad de los grafos de los departamentos",
+    digits = 3
+  ) %>% 
+  kableExtra::kable_minimal()
+```
+
+### Conectividad
+
+```{r 2e conectividad, echo=FALSE}
+# frecuencias de clanes
+#table(sapply(X = cliques(graph = g_sym, min = 1,
+ #                        max = clique_num(graph = g_sym)),
+  #           FUN = length))
+tabla.2econectividad <- data.frame(Medidas=c(
+  "¿Está conectado", 
+  "Conectivdidad nodal", 
+  "Conectividad por aristas", 
+  "Puntos de artículación"
+))
+
+df <- data.frame(
+    Valores=c(is_connected(red_profesores_bogota),
+             vertex_connectivity(red_profesores_bogota),
+             edge_connectivity(red_profesores_bogota),
+             paste(names(articulation_points(red_profesores_bogota)),
+                   collapse = ";"))
+  )
+tabla.2dconectividad <- cbind(tabla.2econectividad,df)
+
+
+tabla.2econectividad %>% 
+  kableExtra::kable(caption = 'Conectividad',
+                    digits = 3) %>% 
+  kableExtra::kable_minimal()
+
+```
+
+
+### Agrupamiento
+
+
+```{r 2e agrupamiento, echo=FALSE, message=FALSE, warning=FALSE}
+tabla.2etransitividadg <- data.frame(Medidas=c('Transitividad global'))
+
+
+tabla.2dtransitividadl <- lapply(
+  redes_profesores,
+  function(g) {
+    
+    valores <- transitivity(
+      graph = g,
+      type = "local"
+    )
+    
+    valores[is.nan(valores)] <- NA
+    
+    return(valores)
+  }
+)
+
+for (i in 1:length(tabla.2dtransitividadl)) {
+  trans_global <- transitivity(
+    graph = redes_profesores[[i]], 
+    type = 'global'
+  )
+  df <- data.frame(
+    transitividad=tabla.2dtransitividadl[[i]]
+  )
+  p <- ggplot2::ggplot(data = df,
+                  mapping = aes(x = transitividad))+
+    ggplot2::geom_histogram(col ='gray24', fill = colores[i])+
+    ggplot2::labs(
+    title = paste("Distribución de la transitividad local en el departamento de", names(tabla.2dtransitividadl)[i],sep = ' '),
+    x = "Transitividad local",
+    y = "Frecuencia"
+  ) +
+    geom_vline(
+    aes(
+      xintercept = trans_global,
+      color = "Global"
+    ),
+    linewidth = 1.2
+  )   +
+    annotate(
+      "text",
+      x = trans_global,
+      y = Inf,
+      label = round(trans_global, 3),
+      vjust = 2,
+      color = "black"
+    ) +
+  scale_color_manual(
+    name = "",
+    values = c("Global" = "gray49")
+  ) +
+  theme_minimal()
+  print(p)
+}
+
+
+
+clusters_lista <- list(
+  kc=cluster_fast_greedy,
+  clb=cluster_edge_betweenness,
+  cw=cluster_walktrap,
+  ci=cluster_infomap
+)
+
+clusters_coords <- list()
+layout_kk <- list()
+for (i in 1:length(redes_profesores)) {
+  clusters_coords[[i]] <- lapply(clusters_lista, 
+                                 \(f) f(redes_profesores[[i]]))
+set.seed(831)
+layout_kk[[i]] <- layout_with_kk(redes_profesores[[i]])
+}
+
+par(mfrow=c(1,2), oma = c(0, 0, 3, 0))
+set.seed(2103)
+
+for (i in seq_along(clusters_coords)) {
+
+  for (j in seq_along(clusters_coords[[i]])) {
+
+    clust <- clusters_coords[[i]][[j]]
+
+    ord <- order(
+      sizes(clust),
+      decreasing = TRUE
+    )[1:min(10, length(sizes(clust)))]
+    
+    
+
+    plot(
+      x = clust,
+      y = redes_profesores[[i]],
+      layout = layout_kk[[i]],
+      vertex.size = 12,
+      vertex.label = NA
+    )
+
+    plot.new()
+    
+    legend(
+      "center",
+      legend = c(
+        "Top 10 clusters:",
+        paste0(
+          " - Cluster ",
+          ord,
+          " (n = ",
+          sizes(clust)[ord],
+          ")"
+        )
+      ),
+      col = c(
+        NA,
+        rainbow(length(sizes(clust)))[ord]
+      ),
+      pch = c(
+        NA,
+        rep(19, length(ord))
+      ),
+      pt.cex = 1.5,
+      bty = "n"
+    )
+    mtext(
+  paste("Departamento de", names(redes_profesores)[i],
+        "cluster", names(clusters_lista)[j]),
+  outer = TRUE,
+  side = 3,
+  line = 1.5,
+  cex = 1.1
+)
+  }
+}
+  
+
+
+```
 
 ## f. Interpretar los hallazgos obtenidos.
 
