@@ -16,6 +16,10 @@ library(dplyr) # manejo de datos
 library(jsonlite) # para acceder a archivos json
 library(corrplot) # graficos de matriz de adyacencia
 library(ggplot2) # para gráficos
+library(readxl) # para leer la relatorias de excel
+library(stringr) # para convertir a strings
+
+
 ```
 
 # 1.
@@ -1575,13 +1579,91 @@ Considere las acciones de tutela disponibles en la página de la Relatoría de l
 
 ## a. Una vez en la pagina, en el buscador principal escriba derecho a la aslud y filtre la fecha para todas aquelas tutelas resueltas en el 2004 (fecha de providencia desde 01/01/2004) hasta el dia 13/12/24. Luego, incie la busqueda. En la parte izquierda de la pagina encontrara filtros adicionales. Asi, en la sección Providencia filtre por Tutela y a continuacion exporte los resultados en excel utilizando el boton verde que dice Exportar resultados en EXCEL. A la hora de hacer este proceso le deben resultar 158 providencias. CUando exporte los resultados escojola opcion Seleccionar Todas respecto a la informacion a exportar. Este proceso descargara en su computador un archivo con raiz “relatoria_corte_Constitucional” seguido por la fecha del dia de la descarga. ahora consolidar un archivo de texto plano en el que consigne todo el texto dado en la columna denominada “Resumen”.
 
+```{r texto_DS2024}
+library(readxl)
+library(dplyr)
+library(stringr)
+
+# Leer archivo Excel
+DS2024 <- read_excel("Corte_Constitucional_Relatoria_DS_2024.xlsx", 
+    range = "A11:X177")
+# Limpiar columna resumen
+DS2024 <- DS2024 %>% 
+  dplyr::select(-c('...3','...4','...5'))
+texto_DS2024 <- DS2024$Resumen %>% 
+  str_replace_all("\\s+", " ") %>% 
+  str_trim()
+```
+
 ## b. Repetir el procedimiento descrito en el numeral a. para “derecho de petición” en 2024.
 
+```{r texto_DP2024}
+# Leer archivo Excel
+DP2024 <- read_excel("Corte_Constitucional_Relatoria_DP_2024.xlsx", 
+    range = "A11:X162")
+# Limpiar columna resumen
+DP2024 <- DP2024 %>% 
+  dplyr::select(-c('...3','...4','...5'))
+texto_DP2024 <- DP2024$Resumen %>% 
+  str_replace_all("\\s+", " ") %>% 
+  str_trim()
+```
 ## c. Repetir el procedimiento descrito en el numeral a. para “debido proceso” en 2024.
 
 ## d. Realizar un análisis exhaustivo del texto relacionado con estos derechos empleando técnicas de redes sociales (no es necesario hacer un análsis de sentimiento). Comparar los resultados obtenidos y presentarlos de manera clara y estructurada, destacando las similitudes, diferencias y patrones relevantes.
 
 ## e. Repetir el análisis para los años 2019, 2020, 2021, 2022 y 2023. *Importante:* al aplicar el filtro de fechas, asegúrese de abarcar todo el año completo para cada caso.
+
+```{r text_DS19-23, warning=FALSE, include=FALSE}
+# Leer archivo Excel 2019
+DP2019 <- read_excel("Corte_Constitucional_Relatoria_DP_2019.xlsx", 
+    range = "A11:X134")
+# Limpiar columna resumen 2019
+DP2019 <- DP2019 %>% 
+  dplyr::select(-c('...3','...4','...5'))
+texto_DP2019 <- DP2019$Resumen %>% 
+  str_replace_all("\\s+", " ") %>% 
+  str_trim()
+# Leer archivo Excel 2020
+DP2020 <- read_excel("Corte_Constitucional_Relatoria_DP_2020.xlsx", 
+    range = "A11:X109")
+# Limpiar columna resumen 2020
+DP2020 <- DP2020 %>% 
+  dplyr::select(-c('...3','...4','...5'))
+texto_DP2020 <- DP2020$Resumen %>% 
+  str_replace_all("\\s+", " ") %>% 
+  str_trim()
+# Leer archivo Excel 2021
+DS2021 <- read_excel("Corte_Constitucional_Relatoria_DS_2021.xlsx", 
+    range = "A11:X110")
+# Limpiar columna resumen 2021
+DP2021 <- DP2021 %>% 
+  dplyr::select(-c('...3','...4','...5'))
+texto_DP2021 <- DP2021$Resumen %>% 
+  str_replace_all("\\s+", " ") %>% 
+  str_trim()
+# Leer archivo Excel 2022
+DS2022 <- read_excel("Corte_Constitucional_Relatoria_DS_2022.xlsx", 
+    range = "A11:X117")
+# Limpiar columna resumen 2022
+DS2022 <- DS2022 %>% 
+  dplyr::select(-c('...3','...4','...5'))
+texto_DS2022 <- DS2022$Resumen %>% 
+  str_replace_all("\\s+", " ") %>% 
+  str_trim()
+# Leer archivo Excel 2023
+DS2023 <- read_excel("Corte_Constitucional_Relatoria_DS_2023.xlsx", 
+    range = "A11:X153")
+# Limpiar columna resumen 2023
+DS2023 <- DS2023 %>% 
+  dplyr::select(-c('...3','...4','...5'))
+texto_DS2023 <- DS2023$Resumen %>% 
+  str_replace_all("\\s+", " ") %>% 
+  str_trim()
+```
+
+
+
 
 ## f. Interpretar los resultados obtenidos.
 
