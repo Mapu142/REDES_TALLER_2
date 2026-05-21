@@ -18,8 +18,12 @@ library(corrplot) # graficos de matriz de adyacencia
 library(ggplot2) # para gráficos
 library(readxl) # para leer la relatorias de excel
 library(stringr) # para convertir a strings
-
-
+library(tidytext) 
+library(tidyverse) # para data frames formatos tidy (tibble)
+library(magrittr)
+library(stringi)
+library(SnowballC)
+library(stopwords)
 ```
 
 # 1.
@@ -1571,6 +1575,7 @@ y $T_{k}$ es el número de instantes de tiempo en el período $k$, con $k=0,1$. 
 
 ## d. Para las redes asociadas con $Y_0=[y^{0}_{i,j}]$ y $Y^{1}=[y^{1}_{i,j}]$, realizar una segmentación de comerciantes utilizando un método de agrupamiento jerárquico. Previo al proceso de agrupamiento, simetrizar las redes débilmente, estableciendo $i \leftrightarrow j$ si $i\rightarrow j$ o $i\leftarrow j$. Visualizar la componente gigante de ambas redes empleando un diseño (layout) adecuado, donde el tamaño de los vértices sea proporcional a su fuerza (vertex strength) y los colores indiquen las comunidades detectadas.
 
+
 ## e. Interpretar los resultados obtenidos.
 
 # 5.
@@ -1593,7 +1598,84 @@ DS2024 <- DS2024 %>%
 texto_DS2024 <- DS2024$Resumen %>% 
   str_replace_all("\\s+", " ") %>% 
   str_trim()
+
+##### Convertir a data frame en formato tidy ----
+
+texto_DS2024 <- tibble(
+  line = seq_along(texto_DS2024),   # Crear índice de línea
+  text = texto_DS2024               # Texto original, línea por línea
+)
+
+library(tidytext)
+library(magrittr)
+library(dplyr)
+library(tidytext)
+library(stringr)
+library(stringi)
+library(SnowballC)
+library(stopwords)
+
+mis_stopwords <- c(
+  stopwords::stopwords("es"),
+  "de",
+  "se",
+  "los",
+  "las",
+  "al",
+  "el",
+  "y",
+  "la",
+  "su",
+  "que"
+)
+
+texto_DS2024 <- texto_DS2024 %>%
+  unnest_tokens(
+    input = text,
+    output = word
+  ) %>%
+  
+  # Eliminar NA
+  filter(!is.na(word)) 
+
+
+texto_DS2024 <- texto_DS2024 %>%
+  
+  # Convertir a minúsculas
+  mutate(word = str_to_lower(word)) %>%
+  
+  # Eliminar tildes y diacríticos
+  mutate(word = stringi::stri_trans_general(word, "Latin-ASCII")) %>%
+  
+  # Eliminar números
+  mutate(word = str_remove_all(word, "[0-9]+")) %>%
+  
+  # Eliminar signos de puntuación y símbolos especiales
+  mutate(word = str_remove_all(word, "[[:punct:]]")) %>%
+  mutate(word = str_remove_all(word, "[^[:alnum:] ]")) %>%
+  
+  filter(str_detect(word, "^[a-z]+$")) %>% 
+  
+  # Eliminar espacios vacíos
+  filter(word != "") %>%
+  
+  # Eliminar stopwords
+  filter(
+    !word %in% mis_stopwords
+  ) %>%
+  
+  # Stemming
+  mutate(word = SnowballC::wordStem(word, language = "spanish"))
+
+texto_DS2024 %>%
+  count(word, sort = TRUE) %>%     # Contar ocurrencias y ordenar de mayor a menor
+  head(n = 10) %>% 
+  kableExtra::kable(caption = 'Top 10 tokens más frecuentes') %>% 
+  kableExtra::kable_minimal()
+  
 ```
+
+
 
 ## b. Repetir el procedimiento descrito en el numeral a. para “derecho de petición” en 2024.
 
@@ -1607,10 +1689,88 @@ DP2024 <- DP2024 %>%
 texto_DP2024 <- DP2024$Resumen %>% 
   str_replace_all("\\s+", " ") %>% 
   str_trim()
+
+##### Convertir a data frame en formato tidy ----
+
+texto_DP2024 <- tibble(
+  line = seq_along(texto_DP2024),   # Crear índice de línea
+  text = texto_DP2024               # Texto original, línea por línea
+)
+
+texto_DP2024 <- texto_DP2024 %>%
+  unnest_tokens(
+    input = text,
+    output = word
+  ) %>%
+  
+  # Eliminar NA
+  filter(!is.na(word)) 
+
+
+texto_DP2024 <- texto_DP2024 %>%
+  
+  # Convertir a minúsculas
+  mutate(word = str_to_lower(word)) %>%
+  
+  # Eliminar tildes y diacríticos
+  mutate(word = stringi::stri_trans_general(word, "Latin-ASCII")) %>%
+  
+  # Eliminar números
+  mutate(word = str_remove_all(word, "[0-9]+")) %>%
+  
+  # Eliminar signos de puntuación y símbolos especiales
+  mutate(word = str_remove_all(word, "[[:punct:]]")) %>%
+  mutate(word = str_remove_all(word, "[^[:alnum:] ]")) %>%
+  
+  filter(str_detect(word, "^[a-z]+$")) %>% 
+  
+  # Eliminar espacios vacíos
+  filter(word != "") %>%
+  
+  # Eliminar stopwords
+  filter(
+    !word %in% mis_stopwords
+  ) %>%
+  
+  # Stemming
+  mutate(word = SnowballC::wordStem(word, language = "spanish"))
+
+texto_DP2024 %>%
+  count(word, sort = TRUE) %>%     # Contar ocurrencias y ordenar de mayor a menor
+  head(n = 10) %>% 
+  kableExtra::kable(caption = 'Top 10 tokens más frecuentes') %>% 
+  kableExtra::kable_minimal()
+
 ```
 ## c. Repetir el procedimiento descrito en el numeral a. para “debido proceso” en 2024.
 
 ## d. Realizar un análisis exhaustivo del texto relacionado con estos derechos empleando técnicas de redes sociales (no es necesario hacer un análsis de sentimiento). Comparar los resultados obtenidos y presentarlos de manera clara y estructurada, destacando las similitudes, diferencias y patrones relevantes.
+
+```{r wordclouds_2024}
+par(mfrow=c(1,2))
+library(wordcloud)
+set.seed(1858)
+texto_DS2024 %>%
+  count(word, sort = TRUE) %>%
+  with(wordcloud(
+    words = word,
+    freq = n,
+    max.words = 20,
+    colors = rainbow(20)
+  ))
+title(main = "Derecho a la salud 2024")
+texto_DP2024 %>%
+  count(word, sort = TRUE) %>%
+  with(wordcloud(
+    words = word,
+    freq = n,
+    max.words = 20,
+    colors = rainbow(20)
+  ))
+title(main = "Derecho petición 2024")
+
+```
+
 
 ## e. Repetir el análisis para los años 2019, 2020, 2021, 2022 y 2023. *Importante:* al aplicar el filtro de fechas, asegúrese de abarcar todo el año completo para cada caso.
 
