@@ -67,6 +67,8 @@ corrplot(
   cl.pos      = "n"
 )
 ```
+
+
 Podemos ver que pocos actores tienen una conexión visible para los otros, es decir, que promediando la perspectiva de todos, aquellos que tienen una proporción mayor a 0.5 son los que tienen una amistad notoria, para los demás.
 
 Podemos notar de antemano que es una red fragmentada, con bastantes nodos aislados.
@@ -169,6 +171,8 @@ ggraph(grafo_tbl, layout = "circle") +
   ) +
   theme_void()
 ```
+
+
 + Los actores de nivel 3 en promedio suelen ser amigos de otros actores de su mismo nivel, mientras que los actores de nivel 2 en promedio son amigos tanto de otros actores de su mismo nivel como de actores de nivel 3.
 
 + Los actores que han permanecido más de 9 años, pero por mucho 13 años (*Permanencia = Grupo 3*), suelen ser amigos de actores con el mismo tiempo de permanencia a ellos.
@@ -200,6 +204,8 @@ ggraph(grafo_tbl, layout = "circle") +
   ) +
   theme_void()
 ```
+
+
 + Caso particular del departamento 2: la amistad entre actores del departamento 2 resulta especialmente interesante, porque, desde la perspectiva promedio, ellos se relacionan principalmente con otros actores que pertenecen a su mismo grupo de permanencia. En este subgrupo, la edad no parece ser un factor relevante, ya que dos actores pueden tener el mismo tiempo de permanencia pero no edades iguales o aproximadas. Lo que parece unirlos es la trayectoria compartida en el tiempo, no la coincidencia etaria.
 
 + A diferencia del departamento 2, en el resto de departamentos los actores suelen ser amigos, en promedio, de otros actores con mayor permanencia que ellos. Esto sugiere que, fuera del departamento 2, la amistad tiende a orientarse hacia personas con más antigüedad, posiblemente como referencia o integración.
@@ -497,7 +503,7 @@ ggplot(actores, aes(x = actor, y = propia)) +
 
 Solo cuatro actores presentan valores apreciables de centralidad propia en la red consenso, indicando que son los únicos conectados con actores también centrales dentro de la estructura. Mientras que en la percepción propia la mayoría tienden a sobrestimar su conexión con otros actores centrales.
 
-*Conclusión:* Estos resultados sugieren que los actores no solo sobreestiman la cantidad de amistades que tienen (grado) y su rol como intermediarios (betweenness), sino también la calidad o importancia de esas amistades. La mayoría cree estar conectada con personas bien posicionadas en la red, pero el consenso revela que muy pocos actores ocupan realmente una posición central en términos de conexiones de calidad.
+**Conclusión:** Estos resultados sugieren que los actores no solo sobreestiman la cantidad de amistades que tienen (grado) y su rol como intermediarios (betweenness), sino también la calidad o importancia de esas amistades. La mayoría cree estar conectada con personas bien posicionadas en la red, pero el consenso revela que muy pocos actores ocupan realmente una posición central en términos de conexiones de calidad.
 
 ## e. Calcular la densidad de cada red de percepción y representar estos valores utilizando un histograma. Superponer una línea vertical que indique la densidad de la red de consenso. Analizar si las percepciones sobre la densidad de las relaciones están en concordancia con la densidad observada en el consenso.
 
@@ -692,7 +698,7 @@ validacion %>%
   kableExtra::kable_minimal()
 ```
 
-Realmente todos presentaron el mismo valor en los criterios *RAND* y *RAND ajustado*, indican que todos los métodos presentan el mismo nivel de concordancia respecto a la partición basada en los departamentos de los empleados. 
+Realmente todos presentaron el mismo valor en los criterios **RAND** y **RAND ajustado**, indican que todos los métodos presentan el mismo nivel de concordancia respecto a la partición basada en los departamentos de los empleados. 
 
 Dado que no existen diferencias en la calidad de las particiones obtenidas, no es posible preferir un método sobre otro utilizando únicamente RI o ARI. En este caso, la elección podría basarse en criterios adicionales como simplicidad interpretativa o costo computacional.
 
@@ -739,6 +745,9 @@ corrplot(
   cl.pos      = "n"
 )
 ```
+
+
+
 
 
 ## b. Repetir el procedimiento anterior para los departamentos de Farmacia, Física, Geociencias, Matemáticas, Química.
@@ -918,44 +927,57 @@ names(redes_profesores) <- c('Estadística',
                              'Geociencias',
                              'Matemáticas',
                              'Química')
-colores <- rainbow(length(redes_profesores))
-k <- c(1,2)
-for (i in 1:length(redes_profesores)) {
-  grafo_tbl <- as_tbl_graph(redes_profesores[[i]]) %>% 
-  activate(nodes) 
-p <- ggraph(grafo_tbl, layout = "kk") +
-  # aristas
-  geom_edge_link(
-    aes(width = weight),
-    alpha = 0.3,
-    colour = "gray60"
-  ) +
 
-  # nodos
-  geom_node_point(
-    size = 5,
-    colour = colores[i]
-  ) +
 
-  # etiquetas
-  geom_node_text(
-    aes(label = ''),
-    repel = TRUE,
-    size = 3
-  ) +
-  scale_color_manual(
-      values = colores[k]
+componentes <- lapply(
+  redes_profesores,
+  \(g) {
+
+    com <- igraph::components(g)
+
+    V(g)$color <- com$membership
+
+    g
+  }
+)
+for (i in seq_along(redes_profesores)) {
+  n <- length(unique(V(componentes[[i]])$color))
+colores <- scales::hue_pal()(n)
+
+  grafo_tbl <- as_tbl_graph(componentes[[i]]) %>% 
+    activate(nodes)
+
+  p <- ggraph(grafo_tbl, layout = "kk") +
+    
+    geom_edge_link(
+      aes(width = weight),
+      alpha = 0.3,
+      colour = "gray60"
     ) +
+    
+    geom_node_point(
+      aes(color = as.factor(color)),  
+      size = 5,show.legend = FALSE
+    ) +
+    
+    geom_node_text(
+      aes(label = ""),
+      repel = TRUE,
+      size = 3
+    ) +
+    
+    scale_color_manual(values = colores) +  
+    
+    scale_edge_width(range = c(0.2, 2)) +
+    ggtitle(names(redes_profesores)[i]) +
+    theme_void()
 
-  scale_edge_width(range = c(0.2, 2)) +
-  ggtitle(names(redes_profesores)[i])+
-
-  theme_void()
-print(p)
-
+  print(p)
 }
 
 ```
+
+En las distintas redes podemos notar una componente gigante clara, en cambio el resto de los nodos siempre son aislados, esto nos indica que existe un núcleo de docentes que colaboran activamente entre sí en torno a temáticas comunes, formando una red cohesiva. Por otro lado, los docentes que quedan aislados probablemente: no comparten temáticas con ningún otro docente del departamento, o trabajan en líneas de investigación muy específicas o individuales.
 
 ## d. Caracterizar cada una de las redes a nivel local y estructural, considerando métricas como la distancia, la centralidad, la cohesión, la conectividad y el agrupamiento. Utilizar todas las métricas disponibles para proporcionar un análisis exhaustivo de las propiedades de cada red.
 
@@ -964,22 +986,27 @@ print(p)
 ```{r 2d distancia, echo=FALSE}
 tabla2ddistancia <- data.frame(
   'Medidas/departamento'=c("Orden",
-                           "Tamaño",
-                           "Diámetro del grafo",
-                           "Camino del diámetro",
+                           "Tamano",
+                           "Orden de la componente gigante",
+                           "Diametro del grafo",
+                           "Camino del diametro",
                            "distancia media")
                            )
 
 for (i in 1:length(redes_profesores)) {
+    # componente gigante
   df <- data.frame(
     valor = c(vcount(redes_profesores[[i]]),
-                                ecount(redes_profesores[[i]]),
-                                diameter(redes_profesores[[i]], 
-                                         weights = NA),
-                              paste0(names(get_diameter(redes_profesores[[i]],
-                                                          weights = NA)),
-                                       collapse = ";"),
-                                round(mean_distance(redes_profesores[[i]]),3))
+              ecount(redes_profesores[[i]]),
+              vcount(redes_profesores[[i]]),
+              diameter(redes_profesores[[i]],
+                       weights = NA),
+              paste0(names(get_diameter(redes_profesores[[i]],
+                                        weights = NA)),
+                     collapse = ";"),
+              round(mean_distance(redes_profesores[[i]], 
+                                  weights = NA,
+                                  directed = FALSE),3))
   )
   names(df) <- names(redes_profesores)[i]
   tabla2ddistancia <- cbind(tabla2ddistancia,df)
@@ -991,12 +1018,18 @@ tabla2ddistancia %>%
   kableExtra::kable_minimal()
 ```
 
+Se observa que en el departamento más denso es el de estadística, esto debido a que su componente gigante tiene un orden de 43 nodos, mientras que la red total del departamento es de 58 nodos, es decir cubre más de la mitad de los profesores. Adicionalmente, su diámetro indica que, a lo sumo, dos profesores se conectan a través de otros 2 profesores como máximo, esto refleja una estructura bastante compacta.
+
+Por otro lado los otros departamentos ya suelen ser un poco menos completos, ya que el orden de sus componentes es alrededor de la mitad del orden de las redes originales, sin embargo, estas componentes gigantes siguen siendo densas, ya que sus diámetros se ubican en un rango de 2 a 4 profesores intermedios, esto indica que, aunque cubren una proporción menor de docentes en comparación con Estadística, los docentes que sí pertenecen a la componente gigante están relativamente bien conectados entre sí.
+
+En promedio los profesores se conectan entre sí directamente, aproximadamente.
+
 ### Centralidad
 
 ```{r 2d centralidad, echo=FALSE}
 # medidas de centralidad
 medidas_2dcentralidad <- data.frame(
-  'Medidas/Departamento'= c('Grado','Cercanía','Intermediación','Propio')
+  'Medidas/Departamento'= c('Grado','Cercania','Intermediacion','Propio')
 )
 
 for (i in 1:length(redes_profesores)) {
@@ -1015,7 +1048,7 @@ for (i in 1:length(redes_profesores)) {
 }
 
 names(medidas_2dcentralidad) <- c('Medidas / Departamentos',
-                                  rep(c('Media','Desviación Estándar'),6))
+                                  rep(c('Media','Desviacion Estandar'),6))
 
 medidas_2dcentralidad %>% 
   kableExtra::kbl(
@@ -1034,11 +1067,20 @@ medidas_2dcentralidad %>%
   kableExtra::kable_minimal()
 ```
 
++ Como se mencionó anteriormente, Estadística presenta un grado medio más alto que el resto de los departamentos. Esto confirma que, en promedio, los profesores de Estadística tienen más conexiones directas con otros colegas, sin embargo a nivel general las desviaciones promedio son bastante dispersas con respecto al promedio.
+
++ En términos de cercanía, en general hay valores bajos, lo que indica que los profesores en promedio no estan tan cerca unos de otros, pero se resaltan los departamentos de **Geociencias** y **Matemáticas** ya que son los que poseen mayores valores medios, esto indica que, en promedio, los profesores de estos departamentos están más cerca unos de otros a comparación de los demás, sin embargo, el departamento de Geociencias es más estable pues presenta una desviación estandár menor.
+
++ Para la intermediación podemos notar que en general en promedio no hay profesores que actuen como intermediarios de otros, sin embargo tambien podemos notar que hay una gran variabilidad de las medidas en estos departamentos.
+
++ Para la centralidad propia, Estadística nuevamente presenta un valor más alto que los otros departamentos, lo que nos en indica que en promedio los profesores suelen conectarse con otros profesores que a su vez han trabajado con muchos colegas más, sin embargo la variablidad de esta medida promedio sigue siendo elevada para todos los departamentos. 
+
 
 ### Cohesión
 
 
-```{r 2d cohesión, echo=FALSE}
+```{r 2d cohesión, echo=FALSE, message=FALSE, warning=FALSE}
+colores <- rainbow(length(redes_profesores))
 # frecuencias de clanes
 tabla_cliques <- list()
 for (i in 1:length(redes_profesores)) {
@@ -1063,14 +1105,22 @@ for (j in 1:length(redes_profesores)) {
   clanes_maximal <- lapply(seq_along(largest_cliques(redes_profesores[[j]])), function(k){
   i <- largest_cliques(redes_profesores[[j]])[[k]]
   clan_maximal <- induced_subgraph(graph = redes_profesores[[j]],vids = i)
-  plot(clan_maximal, main=paste0("clan maximal ", j),
-       vertex.size        = 50,
-     vertex.label.color = "black",
+  plot(clan_maximal, main=paste("clan maximal", names(redes_profesores)[j],'orden',vcount(clan_maximal),sep=' '),
+       vertex.size        = 25,
+       vertex.label = '',
+     #vertex.label.color = "black",
      vertex.color       = colores[j], 
      vertex.frame.color = "black",
      edge.color         = "gray30")
 })
-  df <- data.frame(densidad=edge_density(redes_profesores[[j]]))
+  g <- redes_profesores[[j]]
+
+  # componente gigante
+  comp <- components(g)
+  giant_id <- which(comp$membership == which.max(comp$csize))
+  g_gc <- induced_subgraph(g, giant_id)
+
+  df <- data.frame(densidad=edge_density(g_gc))
   names(df) <- names(redes_profesores)[j]
   densidad2d <- cbind(densidad2d,df)
 }
@@ -1078,25 +1128,35 @@ for (j in 1:length(redes_profesores)) {
 names(densidad2d)[1] <- ''
 names(tabla_cliques) <- c('Tamaño clique','cantidad de cliques')
 
-for (i in 1:length(redes_profesores)) {
-  print(
-    tabla_cliques[[i]] %>% kableExtra::kbl(
-  caption = paste("Tamaños de clanes y su frecuencia para",
-                  names(redes_profesores)[i],sep = ' '), 
-  digits = 3) %>% 
-  kableExtra::kable_minimal()
-  )
-}
+for (i in seq_along(redes_profesores)) {
 
+  print(
+    tabla_cliques[[i]] %>%
+    kableExtra::kbl(
+      caption = paste(
+        "Tamaños de clanes y su frecuencia para",
+        names(redes_profesores)[i]
+      ),
+      digits = 3
+    ) %>%
+    kableExtra::kable_minimal()
+  )
+ 
+
+}
 
 
 densidad2d %>% 
   kableExtra::kbl(
-    caption = "Densidad de los grafos de los departamentos",
+    caption = "Densidad de las componentes de los departamentos",
     digits = 3
   ) %>% 
   kableExtra::kable_minimal()
 ```
+
+Comparando los clanes maximales con las componentes anteriormente encontradas, podemos notar que para todos los departamentos casi llegan a coincidir, es decir que cubren más de la mitad de la componente gigante. 
+
+Podemos notar que los departamentos tienen componentes bastante densas siendo los de menor densidad **Matemáticas** y **Geociencias**.
 
 ### Conectividad
 
@@ -1309,18 +1369,18 @@ bogota[["links"]] <- bogota[["links"]] %>%
 bogota[['nodes']] <- bogota[["nodes"]] %>% 
   dplyr::filter(id!='1bcd56e4-2d64-4516-9488-3b3f1970c02a')
 
-links_tipo <- bogota[["links"]] |>
+links_tipo <- bogota[["links"]] %>%
   merge(
     bogota[["nodes"]][, c("id", "type")],
     by.x = "source",
     by.y = "id"
-  ) |>
-  rename(source_type = type) |>
+  ) %>%
+  rename(source_type = type) %>%
   merge(
     bogota[["nodes"]][, c("id", "type")],
     by.x = "target",
     by.y = "id"
-  ) |>
+  ) %>%
   rename(target_type = type)
 
 author_uab <- links_tipo %>%
@@ -1422,7 +1482,7 @@ ggraph(grafo_tbl, layout = "kk") +
 
 ```{r 2e distancia, echo=FALSE}
 tabla2edistancia <- data.frame(
-  'Medidas/departamento'=c("Orden",
+  'Medidas'=c("Orden",
                            "Tamaño",
                            "Diámetro del grafo",
                            "Camino del diámetro",
@@ -1439,7 +1499,7 @@ df <- data.frame(
                                        collapse = ";"),
                                 round(mean_distance(red_profesores_bogota),3))
   )
-  tabla2ddistancia <- cbind(tabla2edistancia,df)
+  tabla2edistancia <- cbind(tabla2edistancia,df)
 
 
 tabla2edistancia %>% 
@@ -1563,7 +1623,7 @@ tabla.2econectividad %>%
 ### Agrupamiento
 
 
-```{r 2e agrupamiento, echo=FALSE, message=FALSE, warning=FALSE}
+```{r 2e trans_local, echo=FALSE, message=FALSE, warning=FALSE}
 trans_global <- transitivity(red_profesores_bogota,type = 'global')
 
 
@@ -1609,7 +1669,9 @@ clusters_lista <- list(
   kc = cluster_fast_greedy,
   cw = cluster_walktrap
 )
+```
 
+```{r 2e agrupamiento, echo=FALSE, message=FALSE, warning=FALSE}
 #clusters
 clusters_coords <- lapply(clusters_lista, 
                                  \(f) f(red_profesores_bogota))
@@ -1635,15 +1697,31 @@ subgrafos <- lapply(unique(mem), function(k) {
   nodes <- names(mem[mem == k])
   induced_subgraph(red_profesores_bogota, vids = nodes)
 })
-    plots <- lapply(subgrafos, function(g) {
-  lay <- create_layout(g, layout = "fr")
-  
+
+colores <- rainbow(length(subgrafos))
+    plots <- lapply(seq_along(subgrafos), function(i) {
+
+  g <- subgrafos[[i]]
+
+  lay <- create_layout(
+    g,
+    layout = "fr"
+  )
+
   ggraph(lay) +
-    geom_edge_link0(alpha = 0.2, colour = "gray70") +
-    geom_node_point(size = 2, colour = "chocolate3") +
+    geom_edge_link0(
+      alpha = 0.2,
+      colour = "gray70"
+    ) +
+    geom_node_point(
+      size = 2,
+      colour = colores[i]
+    ) +
+    labs(
+      title = paste("Agrupación", i)
+    ) +
     theme_void()
 })
-
 for (i in 1:length(plots)) {
   print(plots[[i]])
 } 
