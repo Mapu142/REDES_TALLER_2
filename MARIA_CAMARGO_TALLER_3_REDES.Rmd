@@ -67,8 +67,14 @@ corrplot(
   cl.pos      = "n"
 )
 ```
+Podemos ver que pocos actores tienen una conexión visible para los otros, es decir, que promediando la perspectiva de todos, aquellos que tienen una proporción mayor a 0.5 son los que tienen una amistad notoria, para los demás.
+
+Podemos notar de antemano que es una red fragmentada, con bastantes nodos aislados.
+
+
 
 ```{r krackfr_grafo, include=FALSE}
+library(dplyr)
 krackfr_grafo <- graph_from_adjacency_matrix(adyacencia_krackfr)
 dat_nodos <- read_table("krackhardt21c.txt")
 dat_nodos <- as.data.frame(dat_nodos)
@@ -86,6 +92,9 @@ dat_nodos <- dat_nodos %>%
       tenure <= quantile(tenure,0.75) ~ "grupo 3",
       TRUE ~ "grupo 4"))
 ```
+
+
+
 
 ```{r plot 1 krackfr_grafo, echo=FALSE, message=FALSE, warning=FALSE}
 set.seed(1758)
@@ -123,6 +132,20 @@ ggraph(grafo_tbl, layout = "circle") +
   ) +
   theme_void()
 ```
+
+Aspectos interesantes a notar:
+
++ En promedio, los actores del departamento 2 tienden a ser percibidos como amigos entre sí.
+
++ El *actor 7* que pertenece al departamento 0, pero que además se encuentra en el grupo 4 de edad (*Edad > 43 años*) no parece compartir ninguna amistad con otros.
+
++ Los actores del departamento 4 suelen ser percibidos en promedio como amigos de los actores del departamento 1.
+
++ Los actores del departamento 3 tienden a tener una percepción promedio por los demás de ser amigos de nadie.
+
++ Realmente no parece que la edad influya en la amistad de los actores, pues dentro de las amistades (de perspectiva promedio) hay interacción entre distintos grupos de edad.
+
+
 ```{r plot 2 krackfr_grafo, echo=FALSE}
 ggraph(grafo_tbl, layout = "circle") +
   geom_edge_link(
@@ -146,6 +169,14 @@ ggraph(grafo_tbl, layout = "circle") +
   ) +
   theme_void()
 ```
++ Los actores de nivel 3 en promedio suelen ser amigos de otros actores de su mismo nivel, mientras que los actores de nivel 2 en promedio son amigos tanto de otros actores de su mismo nivel como de actores de nivel 3.
+
++ Los actores que han permanecido más de 9 años, pero por mucho 13 años (*Permanencia = Grupo 3*), suelen ser amigos de actores con el mismo tiempo de permanencia a ellos.
+
++ A pesar de que el *actor 7* ha permanecido más que otros actores (*Grupo 4 > 13*)  no presenta una amistad con ninguno otro. No obstante, fuera de ese caso aislado, se observa que, aunque la mayoría de las amistades promedio ocurren entre personas con similar permanencia, también existen vínculos entre actores con distintos tiempos de permanencia.
+
+Este patrón sugiere que la permanencia podría influir en la formación de amistades, lo cual es plausible, ya que compartir experiencias durante el mismo período de tiempo suele crear lazos, pero esa influencia no es determinante ni excluyente, pues la red promedio también muestra interacción entre distintos grupos de permanencia. En otras palabras, la permanencia es un factor relevante, pero no el único ni el más fuerte.
+
 ```{r plot 3 krackfr_grafo, echo=FALSE}
 ggraph(grafo_tbl, layout = "circle") +
   geom_edge_link(
@@ -169,6 +200,10 @@ ggraph(grafo_tbl, layout = "circle") +
   ) +
   theme_void()
 ```
++ Caso particular del departamento 2: la amistad entre actores del departamento 2 resulta especialmente interesante, porque, desde la perspectiva promedio, ellos se relacionan principalmente con otros actores que pertenecen a su mismo grupo de permanencia. En este subgrupo, la edad no parece ser un factor relevante, ya que dos actores pueden tener el mismo tiempo de permanencia pero no edades iguales o aproximadas. Lo que parece unirlos es la trayectoria compartida en el tiempo, no la coincidencia etaria.
+
++ A diferencia del departamento 2, en el resto de departamentos los actores suelen ser amigos, en promedio, de otros actores con mayor permanencia que ellos. Esto sugiere que, fuera del departamento 2, la amistad tiende a orientarse hacia personas con más antigüedad, posiblemente como referencia o integración.
+
 
 ## b. Generar visualizaciones simples, sin elementos decorativos, en un diseño circular para todas las redes de percepción y la red de consenso. ¿Se identifican diferencias notables entre las redes de percepción o entre estas y la red de consenso?
 ```{r 22 grafos, include=FALSE}
@@ -182,7 +217,7 @@ for (i in 1:I) {
 grafos21[[22]] <- krackfr_grafo
 ```
 
-```{r 22 plots, echo=FALSE}
+```{r 22 plots, echo=FALSE, fig.width=10}
 par(mfrow=c(1,2))
 for (i in 1:(I)) {
   plot(grafos21[[i]], 
@@ -203,6 +238,13 @@ for (i in 1:(I)) {
        edge.color         = "gray30",
        main='red de consenso')
 ```
+
++ En términos generales, los actores tienden a percibir más amistades de las que finalmente quedan registradas en la matriz de consenso (promedio > 0.5). Sin embargo, no existe una percepción alta uniforme sobre las mismas relaciones, es decir, mientras que un actor puede considerar que dos personas son amigas, otro actor puede opinar lo contrario. Esta falta de acuerdo entre observadores es precisamente lo que lleva a que muchos promedios se ubiquen por debajo del umbral de 0.5, resultando en una red de consenso con pocas amistades aparentes.
+
++ Una amistad que resalta o es notoria para casi todos los actores es la amistad entre el actor 5 y el actor 19.
+
++ En la mayoría de los casos, los actores reportan más amistades de las que el consenso promedio respalda. Esto sugiere que las percepciones individuales son más optimistas o extensas que la visión colectiva, y que solo unas pocas relaciones logran superar el umbral de acuerdo mayoritario.
+
 
 ## c. Calcular el grado normalizado de cada actor en todas las redes de percepción y en la red de consenso. Para cada actor, crear un diagrama de caja que muestre la distribución de su grado a través de las percepciones y el consenso. Resaltar en cada diagrama con un triángulo rojo ($\triangle$) el grado según su propia percepción y con una cruz azul ($\times$) el grado basado en el consenso. Todos los diagramas de caja deben estar organizados en un único gráfico Analizar si los actores parecen tener una percepción precisa de su participación en las relaciones del sistema.
 
@@ -261,6 +303,10 @@ ggplot(actores, aes(x = actor, y = grado)) +
 
 ```
 
++ En el diagrama de cajas se observa que la mayoría de los actores tienden a sobreestimar las amistades. Es decir, cada actor, desde su perspectiva individual, reporta más vínculos de los que realmente existen según el consenso social promedio.
+
++ Dos actores se apartan de este patrón general: el actor 9 subestimó las amistades, reportó menos vínculos de los que el consenso promedio reconoce; el actor 8 acertó en su percepción, su reporte individual coincide con las relaciones que efectivamente superan el umbral de consenso.
+
 ## d. Repetir el procedimiento anterior para calcular la centralidad de cercanía, la centralidad de intermediación y la centralidad propia de cada actor en todas las redes de percepción y en la red de consenso. Analizar si los actores parecen tener una percepción precisa de su posición e influencia en las relaciones del sistema.
 
 ### Cercanía
@@ -312,14 +358,23 @@ ggplot(actores, aes(x = actor, y = cercania)) +
   ) +
 
   labs(
-    title = "Distribución de grados por actor",
+    title = "Distribución de cercanía por actor",
     x = "Actor",
-    y = "Grado normalizado"
+    y = "Cercanía normalizada"
   ) +
 
   theme_minimal()
 
 ```
+
++ En varios actores no aparece la medida de cercanía del consenso, probablemente porque en la red consenso esos nodos quedaron desconectados parcial o totalmente del resto de la red, impidiendo calcular adecuadamente las distancias geodésicas hacia todos los actores.
+
++ Otro caso interesante son los actores 7 y 9, pues en estos no se pudo calcular la cercanía de la percepción propia de cada uno ya que ambos consideraban que no tenían amigos o que tenían muy pocos, lo que genera, bajo su propia mirada, una red en la que no están conectados con los demás.
+
++ En general la percepción propia de la mayoría de los actores es alta conexión con los demás actores, ubicandolos por encima de la mediana de la distribución, esto sugiere que, en general, los actores tienden a verse a sí mismos como relativamente cercanos o integrados en la red. Solo los actores 1 y 14 se ubican por debajo del primer cuantil, lo que nos indica que se sienten poco conectados.
+
++ A diferencia del grado normalizado, la cercanía no disminuye necesariamente en la red consenso. Aunque el umbral elimina múltiples vínculos y reduce el grado de la mayoría de los actores, algunos actores en la red de consenso presentan valores de cercanía relativamente mayores debido a que permanecen dentro de componentes más compactos, donde las distancias geodésicas entre actores son menores.
+
 
 ### Intermediación
 
@@ -370,14 +425,17 @@ ggplot(actores, aes(x = actor, y = intermediacion)) +
   ) +
 
   labs(
-    title = "Distribución de grados por actor",
+    title = "Distribución de intermediación por actor",
     x = "Actor",
-    y = "Grado normalizado"
+    y = "Intermediación normalizada"
   ) +
 
   theme_minimal()
 
 ```
+
+La mayoría de los actores se sobre estiman, creyendo que son la conexión entre otros actores, facilitando el flujo de relaciones de la red, pero el consenso muestra una realidad diferente: ninguno es realmente la conexión entre otros dos actores.
+
 
 ### Propia
 
@@ -428,14 +486,18 @@ ggplot(actores, aes(x = actor, y = propia)) +
   ) +
 
   labs(
-    title = "Distribución de grados por actor",
+    title = "Distribución de centralidad propia por actor",
     x = "Actor",
-    y = "Grado normalizado"
+    y = "Centralidad propia normalizada"
   ) +
 
   theme_minimal()
 
 ```
+
+Solo cuatro actores presentan valores apreciables de centralidad propia en la red consenso, indicando que son los únicos conectados con actores también centrales dentro de la estructura. Mientras que en la percepción propia la mayoría tienden a sobrestimar su conexión con otros actores centrales.
+
+*Conclusión:* Estos resultados sugieren que los actores no solo sobreestiman la cantidad de amistades que tienen (grado) y su rol como intermediarios (betweenness), sino también la calidad o importancia de esas amistades. La mayoría cree estar conectada con personas bien posicionadas en la red, pero el consenso revela que muy pocos actores ocupan realmente una posición central en términos de conexiones de calidad.
 
 ## e. Calcular la densidad de cada red de percepción y representar estos valores utilizando un histograma. Superponer una línea vertical que indique la densidad de la red de consenso. Analizar si las percepciones sobre la densidad de las relaciones están en concordancia con la densidad observada en el consenso.
 
@@ -454,12 +516,25 @@ ggplot(data = densidad, aes(x=densidad))+
     ),
     linewidth = 1.2
   ) +
+  annotate(
+      "text",
+      x = edge_density(grafos21[[22]]),
+      y = Inf,
+      label = round(edge_density(grafos21[[22]]), 3),
+      vjust = 2,
+      color = "black"
+    ) +
   scale_color_manual(
     name = "",
     values = c("Consenso" = "purple")
   ) +
   theme_minimal()
 ```
+
+El histograma sugiere una distribución aproximadamente uniforme de las densidades individuales dentro del rango observado, aunque con una ligera mayor concentración en valores inferiores al 10%.
+
+En contraste, la densidad de la red consenso (~2%) se ubica en el extremo inferior de la distribución, indicando que el criterio de mayoría produce una estructura considerablemente más dispersa que la mayoría de las percepciones individuales.
+
 
 ## f. Repetir el numeral anterior tanto para la transitividad como para la asortatividad.
 
@@ -484,8 +559,19 @@ ggplot(data = transitividad, aes(x=transitividad))+
     name = "",
     values = c("Consenso" = "purple")
   ) +
+  annotate(
+      "text",
+      x = transitivity(grafos21[[22]],type = 'global'),
+      y = Inf,
+      label = round(transitivity(grafos21[[22]],type = 'global'), 3),
+      vjust = 2,
+      color = "black"
+    ) +
   theme_minimal()
 ```
+
+Podemos ver una concentración mayor alrededor de 0.4 (aproximadamente), lo que sugiere que los actores tienden a creer que hay amistades de 3 personas, sin embargo el consenso (transitividad global = 0) indica lo contrario, dando a entender que bajo la percepción de los 21 actores, no hay tríos de amistades que sean frecuentes o notorios para todos. 
+
 
 ### Asortatividad
 
@@ -510,6 +596,17 @@ ggplot(data = asortatividad, aes(x=asortatividad))+
   ) +
   theme_minimal()
 ```
+
+En la red consenso no fue posible calcular la asortatividad debido a la escasa conectividad y la limitada variabilidad estructural de la red, lo que impide estimar adecuadamente la correlación entre los grados de nodos adyacentes.
+
+Respecto a las percepciones individuales, los valores de asortatividad tienden a concentrarse en un rango relativamente estrecho, aproximadamente entre -0.25 y 0.25. Esta distribución revela lo siguiente:
+
++ Para algunos actores, desde su perspectiva, las personas suelen ser amigos de personas con pocos amigos (asortatividad negativa)
+
++ Para otros, desde su perspectiva, los actores son amigos de actores con muchos amigos (asortatividad positiva). 
+
+Dado que los valores absolutos de asortatividad no son altos (la mayoría se encuentra cercana a 0), se puede concluir que, en términos generales, los actores no perciben una tendencia clara a ser amigos de personas con más o menos amigos. Es decir, desde su perspectiva individual, el grado de los contactos les resulta indiferente: no hay una preferencia o patrón marcado de conectarse con otros de similar o diferente popularidad.
+
 
 ## g. Segmentar la red de consenso aplicando distintos métodos de agrupamiento y visualizar los resultados obtenidos para cada método. Evaluar la calidad de las particiones generadas comparándolas con la partición basada en los departamentos a los que pertenecen los empleados, utilizando el Índice de Rand (RI) y el Índice de Rand ajustado (ARI). Analizar los valores obtenidos para determinar qué método de agrupamiento logra una mayor concordancia con la estructura departamental.
 
@@ -570,6 +667,9 @@ for (i in 1:length(clusters_coords)) {
 
 ```
 
+Se observa que los distintos métodos de agrupamiento generan exactamente la misma partición de la red consenso, lo que sugiere la presencia de una estructura comunitaria clara y consistente dentro de la red.
+
+
 ```{r validacion, echo=FALSE, message=FALSE, warning=FALSE}
 validacion <- data.frame(
   Metodos=c('Rand','Rand ajustado')
@@ -592,6 +692,9 @@ validacion %>%
   kableExtra::kable_minimal()
 ```
 
+Realmente todos presentaron el mismo valor en los criterios *RAND* y *RAND ajustado*, indican que todos los métodos presentan el mismo nivel de concordancia respecto a la partición basada en los departamentos de los empleados. 
+
+Dado que no existen diferencias en la calidad de las particiones obtenidas, no es posible preferir un método sobre otro utilizando únicamente RI o ARI. En este caso, la elección podría basarse en criterios adicionales como simplicidad interpretativa o costo computacional.
 
 # 2.
 
@@ -1794,7 +1897,7 @@ texto_DP2020 <- DP2020$Resumen %>%
   str_replace_all("\\s+", " ") %>% 
   str_trim()
 # Leer archivo Excel 2021
-DS2021 <- read_excel("Corte_Constitucional_Relatoria_DS_2021.xlsx", 
+DP2021 <- read_excel("Corte_Constitucional_Relatoria_DP_2021.xlsx", 
     range = "A11:X110")
 # Limpiar columna resumen 2021
 DP2021 <- DP2021 %>% 
