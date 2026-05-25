@@ -998,7 +998,7 @@ for (i in 1:length(redes_profesores)) {
   df <- data.frame(
     valor = c(vcount(redes_profesores[[i]]),
               ecount(redes_profesores[[i]]),
-              vcount(redes_profesores[[i]]),
+              max(components(redes_profesores[[i]])$csize),
               diameter(redes_profesores[[i]],
                        weights = NA),
               paste0(names(get_diameter(redes_profesores[[i]],
@@ -1126,29 +1126,26 @@ for (j in 1:length(redes_profesores)) {
 }
 
 names(densidad2d)[1] <- ''
-names(tabla_cliques) <- c('Tamaño clique','cantidad de cliques')
 
 for (i in seq_along(redes_profesores)) {
-
-  print(
-    tabla_cliques[[i]] %>%
+  names(tabla_cliques[[i]]) <- c('Tamano clique','cantidad de cliques')
+  tabla_cliques[[i]] %>%
     kableExtra::kbl(
       caption = paste(
-        "Tamaños de clanes y su frecuencia para",
+        "Clanes y su Frecuencia para",
         names(redes_profesores)[i]
       ),
-      digits = 3
+      digits = 3,
+      format = 'html'
     ) %>%
-    kableExtra::kable_minimal()
-  )
- 
-
+    kableExtra::kable_minimal() %>% 
+    print()
 }
 
 
 densidad2d %>% 
   kableExtra::kbl(
-    caption = "Densidad de las componentes de los departamentos",
+    caption = "Densidad de las componentes gigantes de los departamentos",
     digits = 3
   ) %>% 
   kableExtra::kable_minimal()
@@ -1167,7 +1164,7 @@ Podemos notar que los departamentos tienen componentes bastante densas siendo lo
   #           FUN = length))
 tabla.2dconectividad <- data.frame(Medidas=c(
   "¿Está conectado", 
-  "Conectivdidad nodal", 
+  "Conectividad nodal", 
   "Conectividad por aristas", 
   "Puntos de artículación"
 ))
@@ -1191,6 +1188,7 @@ tabla.2dconectividad %>%
 
 ```
 
+Ninguno de los departamentos presentó una red completamente conexa, lo cual era esperado debido a la presencia de profesores aislados o sin colaboraciones registradas. Sin embargo, las componentes gigantes mostraron estructuras densas y altamente cohesionadas. A pesar de ello, la existencia de puntos de articulación indica que ciertos profesores cumplen un papel estructural crítico, ya que su eliminación fragmentaría la red en componentes desconectadas.
 
 ### Agrupamiento
 
@@ -1265,7 +1263,13 @@ for (i in 1:length(tabla.2dtransitividadl)) {
   print(p)
 }
 
+```
 
+En general en los distintos departamentos notamos que, hay bastantes conexiones entre 3 profesores, es decir, que cuando dos profesores han colaborado con un tercero en común, es muy probable que también hayan colaborado directamente entre sí. En general este tipo de conectividad global esta por encima de 0.8.
+
+En la mayoría presentan una distribución de transitividad local sesgada, lo que indica que son pocos los profesores que no han trabajado entre sí teniendo un tercero en común.
+
+```{r 2d clusters, echo=FALSE, message=FALSE, warning=FALSE}
 
 clusters_lista <- list(
   kc=cluster_fast_greedy,
@@ -1356,6 +1360,16 @@ for (i in seq_along(validacion2dclusters)) {
 
 
 ```
+
+Para los departamentos de **Estadística** y **Farmacia**, el mejor algoritmo fue **Walktrap**. Este algoritmo produce una estructura de comunidades donde:
+
++ La componente gigante se agrupa como un solo cluster (una única comunidad).
+
++ El resto de los nodos (docentes aislados) quedan como clusters individuales o nodos no asignados a la comunidad principal.
+
+Esto indica que, en estos departamentos, la componente gigante es altamente cohesiva y homogénea, sin subgrupos claramente diferenciados en su interior. Todos los docentes que pertenecen a la red colaborativa principal forman una única comunidad.
+
+Por otro lado para los otros departamentos el mejor algoritmo fue **Fast Greedy**. A diferencia de Walktrap, este algoritmo sí detecta distintas agrupaciones dentro de la componente gigante. Esto significa que, en estos departamentos, aunque existe una componente gigante que conecta a la mayoría de los docentes, no es homogénea. En su interior se distinguen varias comunidades o subgrupos de profesores que colaboran más intensamente entre sí que con el resto de la componente.
 
 ## e. Repetir el análisis para toda la sede Bogotá.
 
@@ -1457,6 +1471,8 @@ red_profesores_bogota <- graph_from_adjacency_matrix(profesores_bogota,
 
 ```
 
+Debido a la alta densidad de conexiones presentes en la red de colaboración de la sede Bogotá, se realizó un filtrado de aristas con fines exclusivamente visuales. Para cada nodo se conservaron únicamente las tres conexiones con mayor peso, entendiendo el peso como la intensidad de colaboración entre profesores. Este procedimiento permitió reducir la sobreposición de aristas y mejorar la interpretabilidad de la estructura general de la red, preservando las relaciones más representativas de cada profesor.
+
 ```{r visualización bogota, echo=FALSE}
 grafo_tbl <- as_tbl_graph(red_profesores_bogota) %>%
   activate(edges) %>%  group_by(from) %>%
@@ -1477,27 +1493,32 @@ ggraph(grafo_tbl, layout = "kk") +
   theme_void()
 ```
 
+Aun después del filtrado, la red presenta una alta concentración de conexiones entre profesores, lo que evidencia una estructura de colaboración densa dentro de la sede Bogotá, también se observan nodos aislados o débilmente conectados, indicando que todavía existen profesores sin colaboraciones registradas o con baja integración dentro de la red académica.
 
 ### Distancia
 
 ```{r 2e distancia, echo=FALSE}
 tabla2edistancia <- data.frame(
   'Medidas'=c("Orden",
-                           "Tamaño",
-                           "Diámetro del grafo",
-                           "Camino del diámetro",
-                           "distancia media")
+              "Tamano",
+              'Orden de la componente gigante',
+              "Diametro del grafo",
+              "Camino del diametro",
+              "distancia media")
                            )
 
 df <- data.frame(
     valor = c(vcount(red_profesores_bogota),
-                                ecount(red_profesores_bogota),
-                                diameter(red_profesores_bogota, 
+              ecount(red_profesores_bogota),
+              max(components(red_profesores_bogota)$csize),
+              diameter(red_profesores_bogota, 
                                          weights = NA),
                               paste0(names(get_diameter(red_profesores_bogota,
                                                           weights = NA)),
                                        collapse = ";"),
-                                round(mean_distance(red_profesores_bogota),3))
+                                round(mean_distance(red_profesores_bogota,
+                                                    weights = NA,
+                                  directed = FALSE),3))
   )
   tabla2edistancia <- cbind(tabla2edistancia,df)
 
@@ -1507,6 +1528,10 @@ tabla2edistancia %>%
                   digits=3) %>% 
   kableExtra::kable_minimal()
 ```
+
+Se observa que la red de la sede es bastante densa, esto debido a que su componente gigante tiene un orden de 1530 nodos, mientras que la red total del departamento es de 2465 nodos, es decir cubre más de la mitad de los profesores. Adicionalmente, su diámetro indica que, a lo sumo, dos profesores se conectan a través de otros 4 profesores como máximo, esto refleja una estructura bastante compacta.
+
+En promedio los profesores se conectan entre sí por otro profesor, aproximadamente.
 
 ### Centralidad
 
@@ -1539,6 +1564,13 @@ medidas_2ecentralidad %>%
   kableExtra::kable_minimal()
 ```
 
++ El grado medio de la red completa de profesores es bastante bajo, por lo que aunque existe una componente gigante de 1530 profesores, no quiere decir que haya una alta conectividad dentro de esto, además de esto, ya tomando en cuenta toda la red, incluimos los profesores aislados que habíamos filtrado para la visualización anterior, por lo que tambien influyo mucho en esta medida, haciendo que su variabilidad sea ala.
+
++ En términos de cercanía es más estable que cuando observabamos los departamentos de ciencias por separado, aunque la medida sigue siendo relativamente baja en promedio.
+
++ Para la intermediación podemos notar que en general en promedio no hay profesores que actuen como intermediarios de otros, y no parece presentar una alta variabilidad relativa.
+
++ Para la centralidad propia se encontro que en la sede Bogotá no hay muchos profesores que trabajen con otros que a su vez han trabajados con más colegas, sin embargo la variablidad de esta medida promedio sigue es elevada.
 
 ### Cohesión
 
@@ -1583,10 +1615,12 @@ ggraph(gigante, layout = "kk") +
     colour = "pink3"
   ) +
   scale_edge_width(range = c(0.1, 1)) +
-  ggtitle("Sede Bogotá") +
+  ggtitle("Sede Bogotá, componente gigante") +
   theme_void()
 
 ```
+
+Como se mencionó anteriormente, la existencia de una componente gigante, y multiples componentes de nodos aislados, teniendo un total de 936 componentes.
 
 ### Conectividad
 
@@ -1619,6 +1653,7 @@ tabla.2econectividad %>%
 
 ```
 
+Como se sabe, existen puntos aislados, por lo que la red de profesores de toda la sede no es conectada, sin embargo dentro de la componente gigante existe un profesor con un papel crítico que al ser retirado puede generar la fragmentación de esa componente.
 
 ### Agrupamiento
 
@@ -1670,6 +1705,10 @@ clusters_lista <- list(
   cw = cluster_walktrap
 )
 ```
+
+Se ve una clara distribución sesgada a izquierda, además la transitvidad global fue de 0.7 aproximadamente, esto indica que entre dos profesores con un tercero en común es bastante probable que hayan colaborado entre sí. Son pocos los profesores que no cumplen con esta descripción y y hay una alta agrupación de profesores que sí cumplen con esto.
+
+A continuación se hizo visualizaciones de las agrupaciones de nodos no aislados por el que fue el mejor algoritmo, **Fast Greedy**, en distintos gráficos, esto no significa que no esten conectadas entre sí estas agrupaciones, y si hizo esto netamente para una mejor visualización
 
 ```{r 2e agrupamiento, echo=FALSE, message=FALSE, warning=FALSE}
 #clusters
@@ -1729,6 +1768,9 @@ for (i in 1:length(plots)) {
 
 ```
 
+Podemos ver agrupaciones bastante densas, pero no parecen clanes, es decir que no parecen grafos completos.
+
+Por otro lado la ultima agrupacion cuenta con muchísimos menos nodos que las anteriores, sin embargo sigue sin ser un subgrafo completo
 
 # 3.
 
@@ -1957,6 +1999,148 @@ title(main = "Derecho petición 2024")
 
 ```{r text_DS19-23, warning=FALSE, include=FALSE}
 # Leer archivo Excel 2019
+DS2019 <- read_excel("Corte_Constitucional_Relatoria_DS_2019.xlsx", 
+    range = "A11:X134")
+# Limpiar columna resumen 2019
+DS2019 <- DS2019 %>% 
+  dplyr::select(-c('...3','...4','...5'))
+texto_DS2019 <- DS2019$Resumen %>% 
+  str_replace_all("\\s+", " ") %>% 
+  str_trim()
+# Leer archivo Excel 2020
+DS2020 <- read_excel("Corte_Constitucional_Relatoria_DS_2020.xlsx", 
+    range = "A11:X109")
+# Limpiar columna resumen 2020
+DS2020 <- DS2020 %>% 
+  dplyr::select(-c('...3','...4','...5'))
+texto_DS2020 <- DS2020$Resumen %>% 
+  str_replace_all("\\s+", " ") %>% 
+  str_trim()
+# Leer archivo Excel 2021
+DS2021 <- read_excel("Corte_Constitucional_Relatoria_DS_2021.xlsx", 
+    range = "A11:X110")
+# Limpiar columna resumen 2021
+DS2021 <- DS2021 %>% 
+  dplyr::select(-c('...3','...4','...5'))
+texto_DS2021 <- DS2021$Resumen %>% 
+  str_replace_all("\\s+", " ") %>% 
+  str_trim()
+texto_DS2021 <- tibble(
+  line = seq_along(texto_DS2021),   # Crear índice de línea
+  text = texto_DS2021               # Texto original, línea por línea
+)
+texto_DS2021 <- texto_DS2021 %>%
+  unnest_tokens(
+    input = text,
+    output = word
+  ) %>%
+  
+  # Eliminar NA
+  filter(!is.na(word)) 
+
+
+texto_DS2021 <- texto_DS2021 %>%
+  
+  # Convertir a minúsculas
+  mutate(word = str_to_lower(word)) %>%
+  
+  # Eliminar tildes y diacríticos
+  mutate(word = stringi::stri_trans_general(word, "Latin-ASCII")) %>%
+  
+  # Eliminar números
+  mutate(word = str_remove_all(word, "[0-9]+")) %>%
+  
+  # Eliminar signos de puntuación y símbolos especiales
+  mutate(word = str_remove_all(word, "[[:punct:]]")) %>%
+  mutate(word = str_remove_all(word, "[^[:alnum:] ]")) %>%
+  
+  filter(str_detect(word, "^[a-z]+$")) %>% 
+  
+  # Eliminar espacios vacíos
+  filter(word != "") %>%
+  
+  # Eliminar stopwords
+  filter(
+    !word %in% mis_stopwords
+  ) %>%
+  
+  # Stemming
+  mutate(word = SnowballC::wordStem(word, language = "spanish"))
+
+texto_DS2021 %>%
+  count(word, sort = TRUE) %>%     # Contar ocurrencias y ordenar de mayor a menor
+  head(n = 10) %>% 
+  kableExtra::kable(caption = 'Top 10 tokens más frecuentes') %>% 
+  kableExtra::kable_minimal()
+# Leer archivo Excel 2022
+DS2022 <- read_excel("Corte_Constitucional_Relatoria_DS_2022.xlsx", 
+    range = "A11:X117")
+# Limpiar columna resumen 2022
+DS2022 <- DS2022 %>% 
+  dplyr::select(-c('...3','...4','...5'))
+texto_DS2022 <- DS2022$Resumen %>% 
+  str_replace_all("\\s+", " ") %>% 
+  str_trim()
+texto_DS2022 <- tibble(
+  line = seq_along(texto_DS2022),   # Crear índice de línea
+  text = texto_DS2022               # Texto original, línea por línea
+)
+texto_DS2022 <- texto_DS2022 %>%
+  unnest_tokens(
+    input = text,
+    output = word
+  ) %>%
+  
+  # Eliminar NA
+  filter(!is.na(word)) 
+
+
+texto_DS2022 <- texto_DS2022 %>%
+  
+  # Convertir a minúsculas
+  mutate(word = str_to_lower(word)) %>%
+  
+  # Eliminar tildes y diacríticos
+  mutate(word = stringi::stri_trans_general(word, "Latin-ASCII")) %>%
+  
+  # Eliminar números
+  mutate(word = str_remove_all(word, "[0-9]+")) %>%
+  
+  # Eliminar signos de puntuación y símbolos especiales
+  mutate(word = str_remove_all(word, "[[:punct:]]")) %>%
+  mutate(word = str_remove_all(word, "[^[:alnum:] ]")) %>%
+  
+  filter(str_detect(word, "^[a-z]+$")) %>% 
+  
+  # Eliminar espacios vacíos
+  filter(word != "") %>%
+  
+  # Eliminar stopwords
+  filter(
+    !word %in% mis_stopwords
+  ) %>%
+  
+  # Stemming
+  mutate(word = SnowballC::wordStem(word, language = "spanish"))
+
+texto_DS2022 %>%
+  count(word, sort = TRUE) %>%     # Contar ocurrencias y ordenar de mayor a menor
+  head(n = 10) %>% 
+  kableExtra::kable(caption = 'Top 10 tokens más frecuentes') %>% 
+  kableExtra::kable_minimal()
+# Leer archivo Excel 2023
+DS2023 <- read_excel("Corte_Constitucional_Relatoria_DS_2023.xlsx", 
+    range = "A11:X153")
+# Limpiar columna resumen 2023
+DS2023 <- DS2023 %>% 
+  dplyr::select(-c('...3','...4','...5'))
+texto_DS2023 <- DS2023$Resumen %>% 
+  str_replace_all("\\s+", " ") %>% 
+  str_trim()
+```
+
+```{r text_DP19-23, warning=FALSE, include=FALSE}
+# Leer archivo Excel 2019
 DP2019 <- read_excel("Corte_Constitucional_Relatoria_DP_2019.xlsx", 
     range = "A11:X134")
 # Limpiar columna resumen 2019
@@ -1983,30 +2167,301 @@ DP2021 <- DP2021 %>%
 texto_DP2021 <- DP2021$Resumen %>% 
   str_replace_all("\\s+", " ") %>% 
   str_trim()
+texto_DP2021 <- tibble(
+  line = seq_along(texto_DP2021),   # Crear índice de línea
+  text = texto_DP2021               # Texto original, línea por línea
+)
+texto_DP2021 <- texto_DP2021 %>%
+  unnest_tokens(
+    input = text,
+    output = word
+  ) %>%
+  
+  # Eliminar NA
+  filter(!is.na(word)) 
+
+
+texto_DP2021 <- texto_DP2021 %>%
+  
+  # Convertir a minúsculas
+  mutate(word = str_to_lower(word)) %>%
+  
+  # Eliminar tildes y diacríticos
+  mutate(word = stringi::stri_trans_general(word, "Latin-ASCII")) %>%
+  
+  # Eliminar números
+  mutate(word = str_remove_all(word, "[0-9]+")) %>%
+  
+  # Eliminar signos de puntuación y símbolos especiales
+  mutate(word = str_remove_all(word, "[[:punct:]]")) %>%
+  mutate(word = str_remove_all(word, "[^[:alnum:] ]")) %>%
+  
+  filter(str_detect(word, "^[a-z]+$")) %>% 
+  
+  # Eliminar espacios vacíos
+  filter(word != "") %>%
+  
+  # Eliminar stopwords
+  filter(
+    !word %in% mis_stopwords
+  ) %>%
+  
+  # Stemming
+  mutate(word = SnowballC::wordStem(word, language = "spanish"))
+
+texto_DP2021 %>%
+  count(word, sort = TRUE) %>%     # Contar ocurrencias y ordenar de mayor a menor
+  head(n = 10) %>% 
+  kableExtra::kable(caption = 'Top 10 tokens más frecuentes') %>% 
+  kableExtra::kable_minimal()
 # Leer archivo Excel 2022
-DS2022 <- read_excel("Corte_Constitucional_Relatoria_DS_2022.xlsx", 
+DP2022 <- read_excel("Corte_Constitucional_Relatoria_DP_2022.xlsx", 
     range = "A11:X117")
 # Limpiar columna resumen 2022
-DS2022 <- DS2022 %>% 
+DP2022 <- DP2022 %>% 
   dplyr::select(-c('...3','...4','...5'))
-texto_DS2022 <- DS2022$Resumen %>% 
+texto_DP2022 <- DP2022$Resumen %>% 
   str_replace_all("\\s+", " ") %>% 
   str_trim()
+texto_DP2022 <- tibble(
+  line = seq_along(texto_DP2022),   # Crear índice de línea
+  text = texto_DP2022               # Texto original, línea por línea
+)
+texto_DP2022 <- texto_DP2022 %>%
+  unnest_tokens(
+    input = text,
+    output = word
+  ) %>%
+  
+  # Eliminar NA
+  filter(!is.na(word)) 
+
+
+texto_DP2022 <- texto_DP2022 %>%
+  
+  # Convertir a minúsculas
+  mutate(word = str_to_lower(word)) %>%
+  
+  # Eliminar tildes y diacríticos
+  mutate(word = stringi::stri_trans_general(word, "Latin-ASCII")) %>%
+  
+  # Eliminar números
+  mutate(word = str_remove_all(word, "[0-9]+")) %>%
+  
+  # Eliminar signos de puntuación y símbolos especiales
+  mutate(word = str_remove_all(word, "[[:punct:]]")) %>%
+  mutate(word = str_remove_all(word, "[^[:alnum:] ]")) %>%
+  
+  filter(str_detect(word, "^[a-z]+$")) %>% 
+  
+  # Eliminar espacios vacíos
+  filter(word != "") %>%
+  
+  # Eliminar stopwords
+  filter(
+    !word %in% mis_stopwords
+  ) %>%
+  
+  # Stemming
+  mutate(word = SnowballC::wordStem(word, language = "spanish"))
+
+texto_DP2022 %>%
+  count(word, sort = TRUE) %>%     # Contar ocurrencias y ordenar de mayor a menor
+  head(n = 10) %>% 
+  kableExtra::kable(caption = 'Top 10 tokens más frecuentes') %>% 
+  kableExtra::kable_minimal()
 # Leer archivo Excel 2023
-DS2023 <- read_excel("Corte_Constitucional_Relatoria_DS_2023.xlsx", 
+DP2023 <- read_excel("Corte_Constitucional_Relatoria_DP_2023.xlsx", 
     range = "A11:X153")
 # Limpiar columna resumen 2023
-DS2023 <- DS2023 %>% 
+DP2023 <- DP2023 %>% 
   dplyr::select(-c('...3','...4','...5'))
-texto_DS2023 <- DS2023$Resumen %>% 
+texto_DP2023 <- DP2023$Resumen %>% 
   str_replace_all("\\s+", " ") %>% 
   str_trim()
 ```
 
+```{r text_DPr19-23, warning=FALSE, include=FALSE}
+# Leer archivo Excel 2021
+DPr2021 <- read_excel("Corte_Constitucional_Relatoria_DPr_2021.xlsx", 
+    range = "A11:X110")
+# Limpiar columna resumen 2021
+DPr2021 <- DPr2021 %>% 
+  dplyr::select(-c('...3','...4','...5'))
+texto_DPr2021 <- DPr2021$Resumen %>% 
+  str_replace_all("\\s+", " ") %>% 
+  str_trim()
+texto_DPr2021 <- tibble(
+  line = seq_along(texto_DPr2021),   # Crear índice de línea
+  text = texto_DPr2021               # Texto original, línea por línea
+)
+texto_DPr2021 <- texto_DPr2021 %>%
+  unnest_tokens(
+    input = text,
+    output = word
+  ) %>%
+  
+  # Eliminar NA
+  filter(!is.na(word)) 
 
 
+texto_DPr2021 <- texto_DPr2021 %>%
+  
+  # Convertir a minúsculas
+  mutate(word = str_to_lower(word)) %>%
+  
+  # Eliminar tildes y diacríticos
+  mutate(word = stringi::stri_trans_general(word, "Latin-ASCII")) %>%
+  
+  # Eliminar números
+  mutate(word = str_remove_all(word, "[0-9]+")) %>%
+  
+  # Eliminar signos de puntuación y símbolos especiales
+  mutate(word = str_remove_all(word, "[[:punct:]]")) %>%
+  mutate(word = str_remove_all(word, "[^[:alnum:] ]")) %>%
+  
+  filter(str_detect(word, "^[a-z]+$")) %>% 
+  
+  # Eliminar espacios vacíos
+  filter(word != "") %>%
+  
+  # Eliminar stopwords
+  filter(
+    !word %in% mis_stopwords
+  ) %>%
+  
+  # Stemming
+  mutate(word = SnowballC::wordStem(word, language = "spanish"))
 
+texto_DPr2021 %>%
+  count(word, sort = TRUE) %>%     # Contar ocurrencias y ordenar de mayor a menor
+  head(n = 10) %>% 
+  kableExtra::kable(caption = 'Top 10 tokens más frecuentes') %>% 
+  kableExtra::kable_minimal()
+# Leer archivo Excel 2022
+DPr2022 <- read_excel("Corte_Constitucional_Relatoria_DPr_2022.xlsx", 
+    range = "A11:X117")
+# Limpiar columna resumen 2022
+DPr2022 <- DPr2022 %>% 
+  dplyr::select(-c('...3','...4','...5'))
+texto_DPr2022 <- DPr2022$Resumen %>% 
+  str_replace_all("\\s+", " ") %>% 
+  str_trim()
+texto_DPr2022 <- tibble(
+  line = seq_along(texto_DPr2022),   # Crear índice de línea
+  text = texto_DPr2022               # Texto original, línea por línea
+)
+texto_DPr2022 <- texto_DPr2022 %>%
+  unnest_tokens(
+    input = text,
+    output = word
+  ) %>%
+  
+  # Eliminar NA
+  filter(!is.na(word)) 
+
+
+texto_DPr2022 <- texto_DPr2022 %>%
+  
+  # Convertir a minúsculas
+  mutate(word = str_to_lower(word)) %>%
+  
+  # Eliminar tildes y diacríticos
+  mutate(word = stringi::stri_trans_general(word, "Latin-ASCII")) %>%
+  
+  # Eliminar números
+  mutate(word = str_remove_all(word, "[0-9]+")) %>%
+  
+  # Eliminar signos de puntuación y símbolos especiales
+  mutate(word = str_remove_all(word, "[[:punct:]]")) %>%
+  mutate(word = str_remove_all(word, "[^[:alnum:] ]")) %>%
+  
+  filter(str_detect(word, "^[a-z]+$")) %>% 
+  
+  # Eliminar espacios vacíos
+  filter(word != "") %>%
+  
+  # Eliminar stopwords
+  filter(
+    !word %in% mis_stopwords
+  ) %>%
+  
+  # Stemming
+  mutate(word = SnowballC::wordStem(word, language = "spanish"))
+
+texto_DPr2022 %>%
+  count(word, sort = TRUE) %>%     # Contar ocurrencias y ordenar de mayor a menor
+  head(n = 10) %>% 
+  kableExtra::kable(caption = 'Top 10 tokens más frecuentes') %>% 
+  kableExtra::kable_minimal()
+```
 ## f. Interpretar los resultados obtenidos.
+
+```{r wordclouds_2019-2023}
+par(mfrow=c(1,2))
+library(wordcloud)
+set.seed(1858)
+#### 2021 -------------------------------------------------------------------
+texto_DS2021 %>%
+  count(word, sort = TRUE) %>%
+  with(wordcloud(
+    words = word,
+    freq = n,
+    max.words = 20,
+    colors = rainbow(20)
+  ))
+title(main = "Derecho a la salud 2021")
+texto_DP2021 %>%
+  count(word, sort = TRUE) %>%
+  with(wordcloud(
+    words = word,
+    freq = n,
+    max.words = 20,
+    colors = rainbow(20)
+  ))
+title(main = "Derecho petición 2021")
+par(mfrow=c(1,1))
+texto_DPr2021 %>%
+  count(word, sort = TRUE) %>%
+  with(wordcloud(
+    words = word,
+    freq = n,
+    max.words = 20,
+    colors = rainbow(20)
+  ))
+title(main = "Debido proceso 2021")
+#### 2022 -------------------------------------------------------------------
+texto_DS2022 %>%
+  count(word, sort = TRUE) %>%
+  with(wordcloud(
+    words = word,
+    freq = n,
+    max.words = 20,
+    colors = rainbow(20)
+  ))
+title(main = "Derecho a la salud 2022")
+texto_DP2022 %>%
+  count(word, sort = TRUE) %>%
+  with(wordcloud(
+    words = word,
+    freq = n,
+    max.words = 20,
+    colors = rainbow(20)
+  ))
+title(main = "Derecho petición 2022")
+par(mfrow=c(1,1))
+texto_DPr2022 %>%
+  count(word, sort = TRUE) %>%
+  with(wordcloud(
+    words = word,
+    freq = n,
+    max.words = 20,
+    colors = rainbow(20)
+  ))
+title(main = "Debido proceso 2022")
+
+
+```
 
 # 6. 
 
