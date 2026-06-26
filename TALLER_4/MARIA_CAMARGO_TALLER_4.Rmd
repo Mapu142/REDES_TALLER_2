@@ -1,0 +1,587 @@
+---
+title: "TALLER 4"
+author: "María Paula Camargo Rincon"
+date: "2026-06-14"
+output: html_document
+---
+
+```{r directorio_librerias, message=FALSE, warning=FALSE, include=FALSE}
+setwd("C:/PERSONAL_MAPU/UNIVERSIDADES/NACIONAL/ANALISIS_ESTADISTICO_DE_REDES/TALLER_4")
+#---
+library(readr)
+library(igraph)
+library(ggplot2)
+library(kableExtra)
+library(dplyr)
+```
+
+# Redes de poder en Colombia
+
+La base de datos poder disponible en la página web del curso corresponde a una red bipartita que relaciona funcionarios públicos con las entidades públicas en las que fueron nombrados a lo largo de seis gobiernos de Colombia, Uribe 1, Uribe 2, Santos 1, Santos 2, Duque y Petro. Específicamente, estos datos se representan mediante una matriz bipartita $\mathbf{A}=[a_{i,j}]$
+ de tamaño $n\times m$, donde $n$ representa el número de funcionarios y $m$ el número de entidades públicas. En esta matriz, $a_{i,j}=1$ si el funcionario $i$ fue nombrado en la entidad $j$, y $a_{i,j}=0$ en caso contrario. La base también incluye covariables individuales, como EDAD, GENERO, PARTIDO_POLITICO, NIVEL_DE_ESTUDIOS, UNIVERSIDAD, CARRERA y GOBERNACION. Esta informacion fue diseñada y recolectada junto con el estudiante Johan Andrés Hernández Sarmiento como parte de su trabajo de grado. La base tiene carácter estrictamente confidencial, por lo que ninguna persona cuenta con autorizacion para compartirla, reproducirla o divulgarla.
+
+El objetivo es llevar a cabo un análisis exhaustivo de las redes de poder en Colombia a través de distintos gobiernos. En el artículo Estos son los grupos políticos que sostienen al gobierno Petro y sus puntos de tension, los autores desarrollan un ejercicio similar, aunque a una escala mucho menor y con recursos teoricos, empíricos y metodologicos más limitados desde el punto de vista del análisis de redes. A pesar de su simplicidad técnica, este texto constituye un buen punto de partida para comprender el proposito general de este caso de estudio.
+
+## a. Filtre la base de datos usando la covariable GOBERNACION, de manera que se conserven todos aquellos funcionarios que hicieron parte del Gobierno Petro, incluso si también participaron en otros gobiernos. Sea $\mathbf{A}_{P}$ la matriz bipartita resultante de este filtro, de tamaño $n_P\times m$, donde $n_P$ corresponde al número de funcionarios del Gobierno Petro y $m$ corresponde al número de entidades públicas. A partir de esta matriz, construya la matriz de adyacencia ponderada $\mathbf{A}_{P}\mathbf{A}_{P}^{T}$, de tamaño $n_P\times n_P$. Luego, construya la matriz $\mathbf{Y}_P$ a partir de esta matriz de adyacencia ponderada, transformándola en una matriz binaria y fijando en cero los elementos de la diagonal principal. Repita este procedimiento para los gobiernos Duque, Santos y Uribe. En los casos de Santos y Uribe, combine los dos periodos de cada gobierno en una sola matriz. Al finalizar el proceso, debe contar con cuatro redes binarias no dirigidas, una para cada gobierno.
+
+## b. De manera paralela y comparativa, construya visualizaciones decoradas para cada red, aprovechando al máximo la informacion nodal disponible. Presente estas visualizaciones de forma estratégica, de modo que faciliten la comparacion entre gobiernos y permitan identificar patrones comunes, diferencias estructurales y posibles cambios en la configuracion de las redes de poder.
+
+## c. Calcule medidas de centralidad para identificar cuáles son los funcionarios más influyentes dentro de cada red. A partir de estos resultados, construya visualizaciones decoradas que incorporen la informacion de centralidad de manera clara e informativa. Presente las visualizaciones de forma estratégica para comparar los resultados entre gobiernos. Finalmente, interprete los hallazgos de manera profunda, pero concisa, destacando sus posibles implicaciones políticas.
+
+## d. Analice cada una de las redes a nivel local y estructural mediante métricas de distancia, cohesion, conectividad y agrupamiento. Emplee un conjunto amplio de métricas que permita caracterizar de manera detallada las propiedades principales de cada red. Presente los resultados de forma estratégica, de modo que se facilite la comparacion entre gobiernos y se identifiquen similitudes, diferencias y cambios relevantes en la estructura de las redes de poder. Finalmente, interprete los hallazgos de manera profunda, pero concisa, destacando sus posibles implicaciones políticas.
+
+## e. Ajuste, de manera independiente para cada red, un modelo de bloques estocásticos, un modelo de grafos aleatorios exponenciales y un modelo de socialidad con covariables. En el caso del modelo de grafos aleatorios exponenciales, incluya como términos del predictor lineal el número de aristas y las covariables con efectos homofílicos. Para el modelo de socialidad, incorpore también covariables con efectos homofílicos. Presente todos los resultados de forma estratégica, de modo que se facilite la comparacion entre gobiernos y se identifiquen diferencias relevantes en la estructura de las redes de poder. Finalmente, interprete los resultados de manera profunda, pero concisa, destacando sus posibles implicaciones políticas.
+
+## f. Evalúe la bondad de ajuste de los modelos ajustados en el numeral anterior utilizando como estadísticos de prueba la densidad, la transitividad, la asortatividad y la distancia geodésica promedio. Presente los resultados en tablas y gráficos, interpretando detalladamente los hallazgos, identificando qué modelos capturan mejor las propiedades observadas en la red y limitando el análisis a un máximo de 1000 palabras.
+
+## g. Repita los numerales b., c. y d. para la red completa, sin filtrar por gobierno.
+
+# Estructuras sociales cognitivas
+
+El trabajo de David Krackhardt en la década de 1980 fue pionero en la identificacion de individuos con habilidades para percibir la estructura social en la que están inmersos. Para ello, recopilo datos relacionales sobre la estructura social cognitiva (Cognitive Social Structure, CSS, por sus siglas en inglés) de 21 miembros del personal administrativo de una empresa de fabricacion de maquinaria de alta tecnología, Silicon Systems. El objetivo era evaluar los efectos de un programa reciente de intervencion administrativa. Una de las relaciones estudiadas fue la amistad, donde cada persona no solo reporto sus relaciones de amistad, sino también las relaciones percibidas entre todos los demás empleados. Esto permitio construir una matriz de adyacencia de tamaño $21\times21$ que reflejaba las percepciones de cada individuo dentro del grupo. Este enfoque ha sido utilizado con éxito en estudios posteriores mediante modelos triádicos (e.g., Sosa y Rodríguez 2021).
+
+Para replicar los hallazgos de Krackhardt, así como de otros autores que han estudiado las estructuras sociales cognitivas (CSSs), considere el conjunto de datos *CSS2022.txt*. Este archivo contiene las percepciones de amistad de los estudiantes de un curso ofrecido por el Departamento de Estadística de la Universidad Nacional de Colombia durante el segundo semestre de 2022.
+
+El archivo incluye una CSS completa de dimension 15, conformada por quince matrices de adyacencia de tamaño $15\times15$. Cada matriz $\mathbf{A}^{(j)}$
+representa la percepcion del estudiante $j$ sobre las relaciones de amistad en el sistema social del curso, con $j=1,…,15$. Además, el archivo *covs.txt* proporciona informacion adicional sobre cada estudiante: sexo (0 = Mujer, 1 = Hombre), edad (edad en años cumplidos) y texttt{programa (0 = Pregrado, 1 = Posgrado).
+
+La red de consenso de una CSS se define como la red cuya matriz de adyacencia, denotada por $\mathbf{A}=[a_{i,j}]$, se construye aplicando la siguiente regla:
+$$
+\begin{cases}
+1,\text{ si}\frac{1}{I}\sum_{k=1}^{I}a_{i,j,k}>0.25 &  \\
+0,\text{ en otro caso},
+\end{cases},
+$$
+donde $I$ es el número total de actores en el sistema, y $a_{i,j,k}$ es la percepcion del actor $k$ sobre la relacion entre los actores $i$ y $j$.
+
+Este enfoque permite sintetizar las percepciones individuales en una única red que refleja el consenso del sistema social en cuestion.
+
+## a.Realice visualizaciones no decoradas en un diseño circular para representar todas las percepciones individuales y la red de consenso. Compare las diferencias entre las percepciones individuales y entre estas y la red de consenso, identificando posibles discrepancias o patrones consistentes. Use tantas tablas y gráficos como sean necesarios para apoyar el análisis. Interprete los resultados obtenidos, evaluando la coherencia entre las percepciones y la capacidad del consenso para capturar el panorama general del sistema social, limitando el análisis a un máximo de 1000 palabras.{.tabset}
+
+### Actor 1 y 2.
+
+```{r krackfr, include=FALSE}
+krackfr <- read_table("krackfr.txt", col_names = FALSE)
+I <- dim(krackfr)[2]
+colnames(krackfr) <- c(1:I)
+adyacencia_krackfr <- matrix(nrow = I, ncol = I,byrow = FALSE)
+colnames(adyacencia_krackfr) <- colnames(krackfr)
+row.names(adyacencia_krackfr) <- colnames(krackfr) 
+for (i in 1:I) {
+  k <- seq(i, I * I, by = I)
+  for (j in 1:I) {
+    adyacencia_krackfr[j,i] <- mean(krackfr[[j]][k],na.rm = TRUE)
+    
+    if (adyacencia_krackfr[j,i]>0.25) {
+      adyacencia_krackfr[j,i] <- 1
+    } else adyacencia_krackfr[j,i] <- 0
+
+  }
+}
+krackfr_grafo <- graph_from_adjacency_matrix(adyacencia_krackfr)
+adyacencias <- list()
+grafos21 <- list()
+for (i in 1:I) {
+  j <- seq(1,21*21,21)[i]
+  adyacencias[[i]] <- as.matrix(krackfr[j:(j+(I-1)),])
+  grafos21[[i]] <- graph_from_adjacency_matrix(adyacencias[[i]]) 
+}
+grafos21[[22]] <- krackfr_grafo
+nombres <- c()
+for (i in 1:I) {
+  nombres[i] <- as.character(paste("Actor",i,sep = " "))
+}
+nombres[22] <- as.character("Red de consenso")
+names(grafos21) <- nombres
+circle <- layout_in_circle(graph = krackfr_grafo)
+
+```
+
+```{r Actores1y2, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(1,2))
+plot(grafos21[[1]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 1,sep = ' '))
+plot(grafos21[[2]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 2,sep = ' '))
+
+```
+
+### Actores 3 y 4
+```{r Actores3y4, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(1,2))
+plot(grafos21[[3]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 3,sep = ' '))
+plot(grafos21[[4]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 4,sep = ' '))
+
+```
+
+### Actores 5 y 6
+```{r Actores5y6, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(1,2))
+plot(grafos21[[5]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 5,sep = ' '))
+plot(grafos21[[6]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 6,sep = ' '))
+
+```
+
+### Actores 7 y 8
+```{r Actores7y8, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(1,2))
+plot(grafos21[[7]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 7,sep = ' '))
+plot(grafos21[[8]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 8,sep = ' '))
+
+```
+
+### Actores 9 y 10
+```{r Actores9y10, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(1,2))
+plot(grafos21[[9]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 9,sep = ' '))
+plot(grafos21[[10]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 10,sep = ' '))
+
+```
+
+### Actores 11 y 12
+```{r Actores11y12, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(1,2))
+plot(grafos21[[11]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 11,sep = ' '))
+plot(grafos21[[12]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 12,sep = ' '))
+
+```
+
+### Actores 13 y 14
+```{r Actores13y14, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(1,2))
+plot(grafos21[[13]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 13,sep = ' '))
+plot(grafos21[[14]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 14,sep = ' '))
+
+```
+
+### Actores 15 y 16
+
+```{r Actores15y16, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(1,2))
+plot(grafos21[[15]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 15,sep = ' '))
+plot(grafos21[[16]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 16,sep = ' '))
+
+```
+
+### Actores 17 y 18
+```{r Actores17y18, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(1,2))
+plot(grafos21[[17]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 17,sep = ' '))
+plot(grafos21[[18]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 18,sep = ' '))
+
+```
+
+### Actores 19 y 20
+```{r Actores19y20, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(1,2))
+plot(grafos21[[19]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 19,sep = ' '))
+plot(grafos21[[20]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 20,sep = ' '))
+
+```
+
+### Actor 21 y Consenso
+
+```{r Actores21ycon, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(1,2))
+plot(grafos21[[5]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main=paste('Red de percepcion', 21,sep = ' '))
+plot(grafos21[[6]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main='Red de Consenso')
+
+```
+
+### Tabla de Jaccard
+
+```{r tabla de jaccard, message=FALSE, warning=FALSE, include=FALSE}
+jaccard_tab <- purrr::map_dfr(
+  1:21,
+  function(i) {
+
+    ego <- adyacencias[[i]]
+    diag(ego) <- 0
+
+    ego_out <- ego[i, ]
+    ego_in  <- ego[, i]
+    cons_out <- adyacencia_krackfr[i, ]
+    cons_in  <- adyacencia_krackfr[, i]
+    ego_total <- c(ego_out, ego_in)
+    cons_total <- c(cons_out, cons_in)
+
+    inter <- sum(ego_total == 1 & cons_total == 1)
+    uni   <- sum(ego_total == 1 | cons_total == 1)
+
+    tibble::tibble(
+      actor = i,
+      ego_out = sum(ego_out),
+      ego_in = sum(ego_in),
+      cons_out = sum(cons_out),
+      cons_in = sum(cons_in),
+      interseccion = inter,
+      union = uni,
+      jaccard = ifelse(uni == 0, NA, inter / uni)
+    )
+  }
+)
+```
+
+```{r jaccard, tab.cap="Coeficiente de Jaccard entre los actores y la red de consenso", echo=FALSE, message=FALSE, warning=FALSE}
+jaccard_tab %>% 
+  arrange(desc(jaccard)) %>% 
+  kableExtra::kbl() %>%
+  kableExtra::kable_paper("striped", full_width = F) %>%
+  kableExtra::column_spec(8, bold = T) %>%
+  kableExtra::row_spec(0, bold = T)#, color = "white", background = "#D7261E")
+```
+
+### Tabla de sensibilidad
+
+```{r tabla de sensibilidad, message=FALSE, warning=FALSE, include=FALSE}
+metricas_tab <- purrr::map_dfr(
+  1:21,
+  function(i) {
+    
+    ad <- as_adjacency_matrix(
+      grafos21[[i]],
+      sparse = FALSE
+    )
+    
+    TP <- sum(ad == 1 & adyacencia_krackfr == 1)
+    TN <- sum(ad == 0 & adyacencia_krackfr == 0)
+    FP <- sum(ad == 1 & adyacencia_krackfr == 0)
+    FN <- sum(ad == 0 & adyacencia_krackfr == 1)
+    
+    sensibilidad <- TP / (TP + FN)
+    
+    especificidad <- TN / (TN + FP)
+    
+    precision <- TP / (TP + FP)
+    
+    exactitud <- (TP + TN) /
+      (TP + TN + FP + FN)
+    
+    tibble(
+      actor = i,
+      TP,
+      FP,
+      FN,
+      TN,
+      sensibilidad,
+      especificidad,
+      precision,
+      exactitud
+    )
+  }
+)
+```
+
+```{r sensibilidad, echo=FALSE, message=FALSE, warning=FALSE, tab.cap="Métrica de sensibilidad de la percepción de los actores y la red de consenso"}
+metricas_tab %>% 
+  arrange(desc(sensibilidad)) %>% 
+  kableExtra::kbl() %>%
+  kableExtra::kable_paper("striped", full_width = F) %>%
+  kableExtra::column_spec(6, bold = T)
+```
+
+
+
+## b. Realice un análisis descriptivo detallado de la red de consenso, destacando sus propiedades estructurales y métricas clave como densidad, transitividad, distribucion de grados, entre otras. Utilice tablas y gráficos según sea necesario para presentar la informacion de manera clara y organizada. Interprete los resultados obtenidos, destacando los patrones relevantes y su implicacion en el contexto del estudio, limitando el análisis a un máximo de 1000 palabras. {.tabset}
+
+### Tabla comparativa
+
+```{r tabla_comparativa, message=FALSE, warning=FALSE, include=FALSE}
+densidad <- c()
+for (i in 1:I) {
+  densidad[i] <- edge_density(graph = grafos21[[i]])
+}
+densidad[22] <- edge_density(graph = grafos21[[22]])
+#--- Transitividad Global
+transitividad <- c()
+for (i in 1:I) {
+  transitividad[i] <- transitivity(graph = grafos21[[i]], 
+                                   type = "global")
+}
+transitividad[22] <- transitivity(graph = grafos21[[22]], 
+                                   type = "global")
+#--- Reciprocidad
+reciprocidad <- c()
+for (i in 1:I) {
+  reciprocidad[i] <- reciprocity(graph = grafos21[[i]])
+}
+reciprocidad[22] <- reciprocity(graph = grafos21[[22]])
+#--- Cercanía
+cercania <- c()
+for (i in 1:I) {
+  cercania[i] <- mean(closeness(graph = grafos21[[i]], normalized = TRUE), 
+                      na.rm = TRUE)
+}
+cercania[22] <- mean(closeness(graph = grafos21[[22]], normalized = TRUE),
+                     na.rm = TRUE)
+#--- Componentes
+componentes <- c()
+for (i in 1:I) {
+  componentes[i] <- length(components(graph = grafos21[[i]]))
+}
+componentes[22] <- length(components(graph = grafos21[[22]]))
+tabla <- data.frame(Red=nombres,
+                    Densidad=densidad,
+                    "Transitividad Global"=transitividad,
+                    Reciprocidad=reciprocidad,
+                    "Cercanía"=cercania,
+                    Componentes=componentes)
+
+```
+
+```{r tabla_actores, echo=FALSE, message=FALSE, warning=FALSE, tab.cap="Comparación entre los actores y la red de consenso utilizando diferentes estadísticos"}
+tabla %>% 
+  kableExtra::kbl() %>%
+  kableExtra::kable_paper("striped", full_width = F) %>%
+  kableExtra::column_spec(1:6, bold = T) %>%
+  kableExtra::row_spec(3:5, bold = T, color = "white", background = "#D7261E")
+```
+
+### Distribución del grado
+
+## c. Calcule el grado normalizado para cada actor en todas las percepciones individuales y en la red de consenso. Construya diagramas de caja para cada actor, mostrando la distribucion de su grado a través de las percepciones y el consenso. Distinga el grado basado en la percepcion propia de cada actor con un triángulo rojo ($\triangle$) y el grado basado en la red de consenso con una cruz azul ($\times$). Incluya todos los diagramas de caja en un único gráfico. Un ejemplo de este tipo de gráfico puede encontrarse en este enlace, página 9. Analice si los actores tienen una percepcion adecuada de su rol dentro del sistema social y limite la interpretacion de los resultados a un máximo de 1000 palabras.
+
+```{r grado normalizado, include=FALSE}
+grados <- list()
+for (i in 1:length(grafos21)) {
+  grados[[i]] <- degree(grafos21[[i]], normalized = TRUE)
+}
+```
+
+```{r diagramas de caja grados, echo=FALSE, fig.height=7, fig.width=10}
+actores <- data.frame()
+for (i in 1:I) {
+  gradoj <- c()
+  for (j in 1:length(grados)) {
+    gradoj[j] <- grados[[j]][i]  
+  }
+  df <- data.frame(
+    actor=factor(i),
+    grado=gradoj,
+    percepcion=gradoj[i],
+    consenso=gradoj[22]
+  )
+  actores <- rbind(actores,df)
+}
+
+ggplot(actores, aes(x = actor, y = grado)) +
+  geom_boxplot(col=rainbow(I)) +
+
+  # Triángulo rojo
+  geom_point(
+    data = actores,
+    aes(x = actor, y = percepcion),
+    shape = 2,
+    color = "red",
+    size = 4
+  ) +
+
+  # Cruz azul
+  geom_point(
+    data = actores,
+    aes(x = actor, y = consenso),
+    shape = 4,
+    color = "blue",
+    size = 4,
+    stroke = 1.2
+  ) +
+
+  labs(
+    title = "Distribucion de grados por actor",
+    x = "Actor",
+    y = "Grado normalizado"
+  ) +
+
+  theme_minimal()
+
+```
+
++ En el diagrama de cajas se observa que la mayoría de los actores tienden a sobreestimar las amistades. Es decir, cada actor, desde su perspectiva individual, reporta más vínculos de los que realmente existen según el consenso social promedio.
+
++ Dos actores se apartan de este patron general: el actor 9 subestimo las amistades, reporto menos vínculos de los que el consenso promedio reconoce; el actor 8 acerto en su percepcion, su reporte individual coincide con las relaciones que efectivamente superan el umbral de consenso.
+
+
+## d. Ajuste un modelo de grafos aleatorio exponencial a la red de consenso, utilizando como términos en el predictor lineal el número de aristas y las covariables con efectos homofílicos. Realice una interpretacion detallada de los resultados obtenidos, identificando el impacto de las covariables en la estructura de la red y discutiendo la adecuacion del modelo en este contexto. Limite la interpretacion a un máximo de 1000 palabras.
+
+## e. Considere los siguientes modelos (sin covariables) para ajustarlos a la red de consenso:
+
+1. $M1$: Modelo de grafos aleatorios.
+2. $M2$: Modelo de grafos aleatorios generalizado.
+3. $M3$: Modelo de grafos aleatorio exponencial con número de aristas y triángulos.
+4. $M4$: Modelo de bloques estocásticos.
+5. $M5$: Modelo latente de distancia clásico con dos dimensiones latentes.
+6. $M6$: Modelo de sociabilidad.
+
+Ajuste cada uno de estos modelos y utilice tablas y visualizaciones según sea necesario para mostrar los resultados. Interprete detalladamente los hallazgos de cada modelo, sin límite de palabras para esta seccion, destacando las fortalezas y limitaciones de cada enfoque.
+
+Nota: El modelo de sociabilidad se encuentra disponible en https://rpubs.com/jstats1702/1430765 (este modelo lo publicaron en 2026 Sosa y Martínez en https://www.tandfonline.com/doi/full/10.1080/10618600.2026.2627454).
+
+## f. Evalúe la bondad de ajuste de los modelos ajustados en el numeral anterior utilizando como estadísticos de prueba la densidad, la transitividad, la asortatividad y la distancia geodésica promedio. Presente los resultados en tablas y gráficos, interpretando detalladamente los hallazgos, identificando qué modelos capturan mejor las propiedades observadas en la red de consenso y limitando el análisis a un máximo de 1000 palabras.
+
+## g. Compruebe la capacidad predictiva de los modelos ajustados en el numeral anterior mediante validacion cruzada con cinco (5 folds). Evalúe el rendimiento predictivo de cada modelo, utilizando tablas y gráficos para resumir los resultados. Interprete los hallazgos, destacando cuál modelo proporciona las mejores predicciones y por qué, limitando la interpretacion a un máximo de 1000 palabras.
+
+# Mafia
+
+El objetivo de este taller es analizar la estructura de una red social derivada de la orden de detencion preventiva emitida por el Tribunal de Messina en marzo de 2007, en el marco de la operacion anti mafia “Montagna”. La investigacion se centro en la familia “Mistretta” y el clan “Batanesi”, que infiltraron diversas actividades economicas entre 2003 y 2007. Los datos se encuentran en el archivo *mafia.RData*. La red representa individuos y relaciones asociadas con actividades ilícitas, donde los nodos corresponden a personas o entidades y los arcos a relaciones de influencia o interaccion. La red es dirigida y ponderada.
+
+## a. Explorar la estructura de los datos de nodos y aristas, identificar la informacion relevante para el análisis, verificar si la red es simple y ponderada, construir la red, calcular su orden y tamaño, generar una visualizacion inicial e identificar los nodos más conectados.
+
+## b. Analizar la estructura global de la red mediante el grado nodal, la conectividad, los componentes, el diámetro y las distancias geodésicas, complementando el estudio con una visualizacion en la que los nodos se distingan por clan y tamaño según su grado.
+
+## c. Evaluar la importancia estructural de los nodos mediante grado, fuerza y medidas de centralidad, estudiar la cohesion de la red a través de cliques, densidad y transitividad, y apoyar la interpretacion con visualizaciones adecuadas.
+
+## d. Aplicar y comparar métodos de deteccion de comunidades, evaluar la modularidad de las particiones, analizar la asortatividad por grado y por clan si corresponde, contrastar las comunidades detectadas con los clanes conocidos y visualizar la particion más adecuada.
+
+## e. Ajustar los modelos considerados previamente incorporando la informacion nodal relevante cuando sea pertinente, presentar e interpretar sus resultados mediante tablas y gráficos, evaluar su bondad de ajuste con base en densidad, transitividad, asortatividad y distancia geodésica promedio, y comparar su capacidad predictiva mediante validacion cruzada de 5 particiones. Las secciones de bondad de ajuste y capacidad predictiva deben tener una extension máxima de 1000 palabras cada una.
