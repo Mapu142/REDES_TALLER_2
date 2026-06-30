@@ -3,7 +3,7 @@ title: "TALLER 4"
 author: "María Paula Camargo Rincon"
 date: "2026-06-14"
 output:
-  html_document:
+  bookdown::html_document2:
     theme: flatly
     toc: true
     toc_float: true
@@ -44,12 +44,34 @@ crear_red <- function(datos, gobierno) {
 
   datos_gob <- datos  %>% 
     filter(stringr::str_detect(GOBERNACION, gobierno))
+  
+  datos_gob <- datos_gob  %>% 
+  mutate(
+    partido_plot = case_when(
+      PARTIDO_POLITICO %in% c("PACTO HISTORICO", "PACTO HISTÓRICO") ~ "Pacto Histórico",
+
+      PARTIDO_POLITICO %in% c("CENTRO DEMOCRATICO", "CENTRO DEMOCRÁTICO") ~ "Centro Democrático",
+
+      PARTIDO_POLITICO %in% c("PARTIDO LIBERAL",
+                              "PARTIDO LIBERAL COLOMBIANO") ~ "Liberal",
+
+      PARTIDO_POLITICO %in% c("PARTIDO CONSERVADOR",
+                              "PARTIDO CONSERVADOR COLOMBIANO") ~ "Conservador",
+
+      PARTIDO_POLITICO %in% c("PARTIDO DE LA U",
+                              "PARTIDO SOCIAL DE UNIDAD NACIONAL") ~ "Partido de la U",
+
+      PARTIDO_POLITICO %in% c("CAMBIO RADICAL") ~ "Cambio Radical",
+
+      TRUE ~ "Otros"
+    )
+  )
 
   nombres_petro <- datos_gob[[1]]
 
-  A <- datos_gob |>
-    select(all_of(entidades)) |>
-    mutate(across(everything(), as.numeric)) |>
+  A <- datos_gob %>% 
+    select(all_of(entidades)) %>%
+    mutate(across(everything(), as.numeric)) %>%
     as.matrix()
 
   rownames(A) <- nombres_petro
@@ -69,7 +91,7 @@ y_uribe <- crear_red(datos = poder,gobierno = "URIBE")
 
 ```
 
-## b. De manera paralela y comparativa, construya visualizaciones decoradas para cada red, aprovechando al máximo la informacion nodal disponible. Presente estas visualizaciones de forma estratégica, de modo que faciliten la comparacion entre gobiernos y permitan identificar patrones comunes, diferencias estructurales y posibles cambios en la configuracion de las redes de poder.
+## b. De manera paralela y comparativa, construya visualizaciones decoradas para cada red, aprovechando al máximo la informacion nodal disponible. Presente estas visualizaciones de forma estratégica, de modo que faciliten la comparacion entre gobiernos y permitan identificar patrones comunes, diferencias estructurales y posibles cambios en la configuracion de las redes de poder.{.tabset}
 
 ```{r}
 crear_grafo <- function(Y, datos_gob) {
@@ -81,7 +103,7 @@ crear_grafo <- function(Y, datos_gob) {
   )
 
   V(g)$nombre <- datos_gob[[1]]
-  V(g)$partido <- datos_gob$PARTIDO_POLITICO
+  V(g)$partido <- datos_gob$partido_plot
   V(g)$genero <- datos_gob$GENERO
   V(g)$edad <- datos_gob$EDAD
   V(g)$grado <- degree(g)
@@ -107,19 +129,34 @@ graficar_red <- function(g, titulo){
 
     geom_node_point(
       aes(
-        colour = partido,
-        shape = genero,
+        colour = genero,
+        shape = partido,
         size = grado
       )
-    ) +
+    ) + scale_shape_manual(
+  values = c(
+    "Pacto Histórico" = 16,      # círculo
+    "Centro Democrático" = 17,   # triángulo
+    "Partido de la U" = 15,      # cuadrado
+    "Liberal" = 18,              # rombo
+    "Conservador" = 8,           # estrella
+    "Cambio Radical" = 3,        # cruz
+    "Otros" = 7                  # cuadrado con cruz
+  )
+) + guides(
+  shape = guide_legend(nrow = 3, direction = "vertical"),
+  colour = guide_legend(nrow = 2, direction = "vertical"),
+  size=guide_legend(direction = "vertical")
+)   +
+    
 
     labs(title = titulo) +
 
-    theme_graph() +
+    theme_minimal() +
 
     theme(
       legend.position = "bottom"
-    )
+    ) 
 }
 
 p1 <- graficar_red(g_petro, "Petro")
@@ -129,19 +166,228 @@ p4 <- graficar_red(g_uribe, "Uribe")
 
 ```
 
-```{r comparativo-gobiernos}
-(p1 | p2) /
-(p3 | p4)
+### Petro
 
+```{r fig-petro, fig.cap="Red de funcionarios del Gobierno Petro.", fig.height=9}
+p1 
+```
+
+### Duque
+
+```{r fig-duque, fig.cap="Red de funcionarios del Gobierno Duque", fig.height=9}
+p2
+```
+
+### Santos
+
+```{r fig-santos, fig.cap="Red de funcionarios del Gobierno Santos.", fig.height=9}
+p3
+```
+
+### Uribe
+
+```{r fig-uribe, fig.cap="Red de funcionarios del Gobierno Uribe.", fig.height=9}
+p4
 ```
 
 ## c. Calcule medidas de centralidad para identificar cuáles son los funcionarios más influyentes dentro de cada red. A partir de estos resultados, construya visualizaciones decoradas que incorporen la informacion de centralidad de manera clara e informativa. Presente las visualizaciones de forma estratégica para comparar los resultados entre gobiernos. Finalmente, interprete los hallazgos de manera profunda, pero concisa, destacando sus posibles implicaciones políticas.
+
+```{r 1c centralidad, echo=FALSE}
+# medidas de centralidad
+medidas_1ccentralidad <- data.frame(
+  'Medidas/Departamento'= c('Grado','Cercania','Intermediacion','Propio')
+)
+
+redes_poder <- list(g_petro,
+                    g_duque,
+                    g_santos,
+                    g_uribe)
+names(redes_poder) <- c("Petro", "Duque", "Santos", "Uribe")
+
+for (i in 1:length(redes_poder)) {
+  dc <- degree(redes_poder[[i]], normalized = T)
+  cc <- closeness(redes_poder[[i]], normalized = T)
+  bc <- betweenness(redes_poder[[i]], normalized = T)
+  ec <- eigen_centrality(redes_poder[[i]])$vector
+  
+  df <- data.frame(
+    Media=c(mean(dc),mean(cc, na.rm = T),mean(bc), mean(ec)),
+      'Desv.Est.' = c(sd(dc), sd(cc, na.rm = T), sd(bc), sd(ec))
+  )
+  names(df) <- c(paste(names(df)[1],names(redes_poder)[i], sep = " " ),
+                 paste(names(df)[2],names(redes_poder)[i], sep = " " ))
+  medidas_1ccentralidad <- cbind(medidas_1ccentralidad,df)
+}
+
+names(medidas_1ccentralidad) <- c('Medidas / Departamentos',
+                                  rep(c('Media','Desviacion Estandar'),4))
+```
+
+```{r centralidad-tabla, tab.cap="Comparación medidas de centralidad entre los distintos gobiernos"}
+medidas_1ccentralidad %>% 
+  kableExtra::kbl(
+    caption = "Resultados",
+    digits = 3
+  ) %>% 
+  kableExtra::add_header_above(
+    header = c(
+      " " = 1,
+      stats::setNames(
+        rep(2, length(redes_poder)),
+        names(redes_poder)
+      )
+    )
+  ) %>% 
+  kableExtra::kable_minimal()
+```
 
 ## d. Analice cada una de las redes a nivel local y estructural mediante métricas de distancia, cohesion, conectividad y agrupamiento. Emplee un conjunto amplio de métricas que permita caracterizar de manera detallada las propiedades principales de cada red. Presente los resultados de forma estratégica, de modo que se facilite la comparacion entre gobiernos y se identifiquen similitudes, diferencias y cambios relevantes en la estructura de las redes de poder. Finalmente, interprete los hallazgos de manera profunda, pero concisa, destacando sus posibles implicaciones políticas. {.tabset}
 
 ### Distancia
 
+```{r 2c distancia, echo=FALSE}
+tabla2cdistancia <- data.frame(
+  'Medidas/departamento'=c("Orden",
+                           "Tamano",
+                           "Orden de la componente gigante",
+                           "Diametro del grafo",
+                           "Camino del diametro",
+                           "distancia media")
+                           )
+
+for (i in 1:length(redes_poder)) {
+    # componente gigante
+  df <- data.frame(
+    valor = c(vcount(redes_poder[[i]]),
+              ecount(redes_poder[[i]]),
+              max(components(redes_poder[[i]])$csize),
+              diameter(redes_poder[[i]],
+                       weights = NA),
+              paste0(names(get_diameter(redes_poder[[i]],
+                                        weights = NA)),
+                     collapse = ";"),
+              round(mean_distance(redes_poder[[i]], 
+                                  weights = NA,
+                                  directed = FALSE),3))
+  )
+  names(df) <- names(redes_poder)[i]
+  tabla2cdistancia <- cbind(tabla2cdistancia,df)
+}
+
+```
+
+```{r distancia-tabla, tab.cap="Comparación medidas de distancia entre los distintos gobiernos"}
+tabla2cdistancia %>% 
+  kableExtra::kbl(caption='Resultados', 
+                  digits=3) %>% 
+  kableExtra::kable_minimal()
+```
+
 ### Cohesión
+
+```{r 2d cohesión, echo=FALSE, message=FALSE, warning=FALSE}
+colores <- rainbow(length(redes_poder))
+# frecuencias de clanes
+tabla_cliques <- list()
+for (i in 1:length(redes_poder)) {
+  tabla_cliques[[i]] <- sapply(
+  X = 1:clique_num(redes_poder[[i]]),
+  FUN = \(k) {
+    igraph::count_max_cliques(redes_poder[[i]], min = k, max = k)
+  }
+)
+
+tabla_cliques[[i]] <- data.frame(
+  clique=seq(1:length(tabla_cliques[[i]])),
+  frecuencia=tabla_cliques[[i]]
+)
+
+tabla_cliques[[i]] <- tabla_cliques[[i]] %>% filter(frecuencia!=0)
+}
+
+densidad2c <- data.frame(Valor='Densidad')
+
+for (j in 1:length(redes_poder)) {
+  clanes_maximal <- lapply(seq_along(largest_cliques(redes_poder[[j]])), function(k){
+  i <- largest_cliques(redes_poder[[j]])[[k]]
+  clan_maximal <- induced_subgraph(graph = redes_poder[[j]],vids = i)
+  plot(clan_maximal, main=paste("clan maximal", names(redes_poder)[j],'orden',vcount(clan_maximal),sep=' '),
+       vertex.size        = 25,
+       vertex.label = '',
+     #vertex.label.color = "black",
+     vertex.color       = colores[j], 
+     vertex.frame.color = "black",
+     edge.color         = "gray30")
+})
+  g <- redes_poder[[j]]
+
+  # componente gigante
+  comp <- components(g)
+  giant_id <- which(comp$membership == which.max(comp$csize))
+  g_gc <- induced_subgraph(g, giant_id)
+
+  df <- data.frame(densidad=edge_density(g_gc))
+  names(df) <- names(redes_poder)[j]
+  densidad2c <- cbind(densidad2c,df)
+}
+
+names(densidad2c)[1] <- ''
+
+names(tabla_cliques[[1]]) <- c('Tamano clique','cantidad de cliques')
+  tabla_cliques[[1]] %>%
+    kableExtra::kbl(
+      caption = paste(
+        "Clanes y su Frecuencia para",
+        names(redes_poder)[1]
+      ),
+      digits = 3,
+      format = 'html'
+    ) %>%
+    kableExtra::kable_minimal()
+
+names(tabla_cliques[[2]]) <- c('Tamano clique','cantidad de cliques')
+  tabla_cliques[[2]] %>%
+    kableExtra::kbl(
+      caption = paste(
+        "Clanes y su Frecuencia para",
+        names(redes_poder)[2]
+      ),
+      digits = 3,
+      format = 'html'
+    ) %>%
+    kableExtra::kable_minimal()
+
+names(tabla_cliques[[3]]) <- c('Tamano clique','cantidad de cliques')
+  tabla_cliques[[3]] %>%
+    kableExtra::kbl(
+      caption = paste(
+        "Clanes y su Frecuencia para",
+        names(redes_poder)[3]
+      ),
+      digits = 3,
+      format = 'html'
+    ) %>%
+    kableExtra::kable_minimal()
+  
+names(tabla_cliques[[4]]) <- c('Tamano clique','cantidad de cliques')
+  tabla_cliques[[4]] %>%
+    kableExtra::kbl(
+      caption = paste(
+        "Clanes y su Frecuencia para",
+        names(redes_poder)[4]
+      ),
+      digits = 3,
+      format = 'html'
+    ) %>%
+    kableExtra::kable_minimal()
+
+densidad2c %>% 
+  kableExtra::kbl(
+    caption = "Densidad de las componentes gigantes de los departamentos",
+    digits = 3
+  ) %>% 
+  kableExtra::kable_minimal()
+```
 
 ### Conectividad
 
@@ -155,7 +401,110 @@ p4 <- graficar_red(g_uribe, "Uribe")
 
 ### Visualizaicón decorada
 
+```{r}
+datos_gob <- poder  %>% 
+  mutate(
+    partido_plot = case_when(
+      PARTIDO_POLITICO %in% c("PACTO HISTORICO", "PACTO HISTÓRICO") ~ "Pacto Histórico",
+
+      PARTIDO_POLITICO %in% c("CENTRO DEMOCRATICO", "CENTRO DEMOCRÁTICO") ~ "Centro Democrático",
+
+      PARTIDO_POLITICO %in% c("PARTIDO LIBERAL",
+                              "PARTIDO LIBERAL COLOMBIANO") ~ "Liberal",
+
+      PARTIDO_POLITICO %in% c("PARTIDO CONSERVADOR",
+                              "PARTIDO CONSERVADOR COLOMBIANO") ~ "Conservador",
+
+      PARTIDO_POLITICO %in% c("PARTIDO DE LA U",
+                              "PARTIDO SOCIAL DE UNIDAD NACIONAL") ~ "Partido de la U",
+
+      PARTIDO_POLITICO %in% c("CAMBIO RADICAL") ~ "Cambio Radical",
+
+      TRUE ~ "Otros"
+    )
+  )
+
+  nombres <- poder[[1]]
+
+  A <- datos_gob %>% 
+    select(all_of(entidades)) %>%
+    mutate(across(everything(), as.numeric)) %>%
+    as.matrix()
+
+  rownames(A) <- nombres
+
+  W <- A %*% t(A)
+
+  Y_poder <- ifelse(W > 0, 1, 0)
+
+  diag(Y_poder) <- 0
+
+
+g_poder <- graph_from_adjacency_matrix(
+    Y_poder,
+    mode = "undirected",
+    diag = FALSE
+  )
+
+  V(g_poder)$nombre <- datos_gob[[1]]
+  V(g_poder)$partido <- datos_gob$partido_plot
+  V(g_poder)$genero <- datos_gob$GENERO
+  V(g_poder)$edad <- datos_gob$EDAD
+  V(g_poder)$grado <- degree(g_poder)
+
+```
+
+```{r red-completa, eval=FALSE, fig.height=15, include=FALSE}
+ggraph(g_poder, layout = "fr") +
+
+    geom_edge_link(
+      alpha = .25,
+      colour = "grey70"
+    ) +
+
+    geom_node_point(
+      aes(
+        colour = genero,
+        shape = partido,
+        size = grado
+      )
+    ) +
+
+    labs(title = "Red completa") +
+
+    theme_minimal() +
+
+    theme(
+      legend.position = "bottom"
+    )
+```
+
 ### Centralidad
+
+```{r 1g centralidad, echo=FALSE}
+# medidas de centralidad
+dc <- degree(g_poder, normalized = T)
+cc <- closeness(g_poder, normalized = T)
+bc <- betweenness(g_poder, normalized = T)
+ec <- eigen_centrality(g_poder)$vector
+medidas_1gcentralidad <- data.frame(
+  'Medidas/Departamento'= c('Grado','Cercania','Intermediacion','Propio'),
+  Media=c(mean(dc),mean(cc, na.rm = T),mean(bc), mean(ec)),
+      'Desv.Est.' = c(sd(dc), sd(cc, na.rm = T), sd(bc), sd(ec))
+)
+
+names(medidas_1gcentralidad) <- c('Medidas',
+                                 'Media','Desviacion Estandar')
+```
+
+```{r centralidad-red-completa, tab.cap="Medidas de centralidad para toda la red "}
+medidas_1gcentralidad %>% 
+  kableExtra::kbl(
+    caption = "Resultados",
+    digits = 3
+  ) %>% 
+  kableExtra::kable_minimal()
+```
 
 ### Análisis Local y estructural
 
