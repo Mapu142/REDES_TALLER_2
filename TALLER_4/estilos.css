@@ -1,0 +1,164 @@
+/* ===========================
+   Fondo general
+=========================== */
+
+body {
+  background-color: #fffafc;
+  color: #4a4a4a;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+/* ===========================
+   Títulos
+=========================== */
+
+h1 {
+  color: #a64ac9;
+  border-bottom: 3px solid #e8d4f5;
+  padding-bottom: .3em;
+}
+
+h2 {
+  color: #b05cc9;
+  border-bottom: 2px solid #f0dff9;
+  padding-bottom: .2em;
+}
+
+h3 {
+  color: #c77dff;
+}
+
+h4, h5, h6 {
+  color: #9d4edd;
+}
+
+/* ===========================
+   Enlaces
+=========================== */
+
+a {
+  color: #bb6bd9;
+}
+
+a:hover {
+  color: #d16ba5;
+  text-decoration: none;
+}
+
+/* ===========================
+   Índice flotante
+=========================== */
+
+.tocify {
+  background: #faf3ff;
+  border-radius: 12px;
+  border: 1px solid #ead8f8;
+}
+
+.tocify ul {
+  font-size: 14px;
+}
+
+.tocify .active {
+  background-color: #e9d5ff;
+  border-radius: 6px;
+}
+
+/* ===========================
+   Código
+=========================== */
+
+pre {
+  background: #faf7ff;
+  border: 1px solid #ead8f8;
+  border-radius: 12px;
+}
+
+code {
+  color: #8e44ad;
+  background: #f8f0ff;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+/* ===========================
+   Tablas
+=========================== */
+
+table {
+  border-collapse: collapse;
+}
+
+thead {
+  background: #d8b4f8;
+  color: white;
+}
+
+tbody tr:nth-child(even) {
+  background: #faf3ff;
+}
+
+tbody tr:hover {
+  background: #f4e4ff;
+}
+
+/* ===========================
+   Bloques de cita
+=========================== */
+
+blockquote {
+  background: #faf3ff;
+  border-left: 6px solid #c77dff;
+  padding: 10px 18px;
+  border-radius: 8px;
+}
+
+/* ===========================
+   Botones
+=========================== */
+
+.btn-primary {
+  background-color: #bb6bd9;
+  border-color: #bb6bd9;
+}
+
+.btn-primary:hover {
+  background-color: #a64ac9;
+  border-color: #a64ac9;
+}
+
+/* ===========================
+   Pestañas (.tabset)
+=========================== */
+
+.nav-tabs {
+  border-bottom: 2px solid #ead8f8;
+}
+
+.nav-tabs > li > a {
+  color: #9d4edd;
+}
+
+.nav-tabs > li.active > a,
+.nav-tabs > li.active > a:hover {
+  background-color: #f5e9ff;
+  border: 1px solid #ead8f8;
+  color: #7b2cbf;
+}
+
+/* ===========================
+   Imágenes
+=========================== */
+
+img {
+  border-radius: 12px;
+}
+
+/* ===========================
+   Separación de secciones
+=========================== */
+
+.section {
+  margin-bottom: 35px;
+}

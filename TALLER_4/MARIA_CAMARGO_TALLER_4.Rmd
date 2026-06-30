@@ -2,17 +2,29 @@
 title: "TALLER 4"
 author: "María Paula Camargo Rincon"
 date: "2026-06-14"
-output: html_document
+output:
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+    number_sections: true
+    code_folding: hide
+css: estilos.css  
 ---
 
 ```{r directorio_librerias, message=FALSE, warning=FALSE, include=FALSE}
-setwd("C:/PERSONAL_MAPU/UNIVERSIDADES/NACIONAL/ANALISIS_ESTADISTICO_DE_REDES/TALLER_4")
+#setwd("C:/PERSONAL_MAPU/UNIVERSIDADES/NACIONAL/ANALISIS_ESTADISTICO_DE_REDES/TALLER_4")
 #---
 library(readr)
 library(igraph)
+library(ggraph)
+library(tidygraph)
 library(ggplot2)
 library(kableExtra)
+library(readxl)
 library(dplyr)
+library(patchwork)
+library(stringr) # para encontrar a los presidentes dentro de gobernación
 ```
 
 # Redes de poder en Colombia
@@ -24,17 +36,128 @@ El objetivo es llevar a cabo un análisis exhaustivo de las redes de poder en Co
 
 ## a. Filtre la base de datos usando la covariable GOBERNACION, de manera que se conserven todos aquellos funcionarios que hicieron parte del Gobierno Petro, incluso si también participaron en otros gobiernos. Sea $\mathbf{A}_{P}$ la matriz bipartita resultante de este filtro, de tamaño $n_P\times m$, donde $n_P$ corresponde al número de funcionarios del Gobierno Petro y $m$ corresponde al número de entidades públicas. A partir de esta matriz, construya la matriz de adyacencia ponderada $\mathbf{A}_{P}\mathbf{A}_{P}^{T}$, de tamaño $n_P\times n_P$. Luego, construya la matriz $\mathbf{Y}_P$ a partir de esta matriz de adyacencia ponderada, transformándola en una matriz binaria y fijando en cero los elementos de la diagonal principal. Repita este procedimiento para los gobiernos Duque, Santos y Uribe. En los casos de Santos y Uribe, combine los dos periodos de cada gobierno en una sola matriz. Al finalizar el proceso, debe contar con cuatro redes binarias no dirigidas, una para cada gobierno.
 
+```{r poder}
+poder <- read_excel("poder.xlsx", 
+    sheet = "GABINETE_LIMPIO")
+entidades <- names(poder)[2:51]
+crear_red <- function(datos, gobierno) {
+
+  datos_gob <- datos  %>% 
+    filter(stringr::str_detect(GOBERNACION, gobierno))
+
+  nombres_petro <- datos_gob[[1]]
+
+  A <- datos_gob |>
+    select(all_of(entidades)) |>
+    mutate(across(everything(), as.numeric)) |>
+    as.matrix()
+
+  rownames(A) <- nombres_petro
+
+  W <- A %*% t(A)
+
+  Y <- ifelse(W > 0, 1, 0)
+
+  diag(Y) <- 0
+
+  return(list(adyacencia=Y,datos_gob=datos_gob))
+}
+y_petro <- crear_red(datos = poder,gobierno = "PETRO")
+y_duque <- crear_red(datos = poder,gobierno = "DUQUE")
+y_santos <- crear_red(datos = poder,gobierno = "SANTOS")
+y_uribe <- crear_red(datos = poder,gobierno = "URIBE")
+
+```
+
 ## b. De manera paralela y comparativa, construya visualizaciones decoradas para cada red, aprovechando al máximo la informacion nodal disponible. Presente estas visualizaciones de forma estratégica, de modo que faciliten la comparacion entre gobiernos y permitan identificar patrones comunes, diferencias estructurales y posibles cambios en la configuracion de las redes de poder.
+
+```{r}
+crear_grafo <- function(Y, datos_gob) {
+
+  g <- graph_from_adjacency_matrix(
+    Y,
+    mode = "undirected",
+    diag = FALSE
+  )
+
+  V(g)$nombre <- datos_gob[[1]]
+  V(g)$partido <- datos_gob$PARTIDO_POLITICO
+  V(g)$genero <- datos_gob$GENERO
+  V(g)$edad <- datos_gob$EDAD
+  V(g)$grado <- degree(g)
+
+  g
+}
+g_petro  <- crear_grafo(y_petro$adyacencia, y_petro$datos_gob)
+
+g_duque  <- crear_grafo(y_duque$adyacencia, y_duque$datos_gob)
+
+g_santos <- crear_grafo(y_santos$adyacencia, y_santos$datos_gob)
+
+g_uribe  <- crear_grafo(y_uribe$adyacencia, y_uribe$datos_gob)
+
+graficar_red <- function(g, titulo){
+
+  ggraph(g, layout = "fr") +
+
+    geom_edge_link(
+      alpha = .25,
+      colour = "grey70"
+    ) +
+
+    geom_node_point(
+      aes(
+        colour = partido,
+        shape = genero,
+        size = grado
+      )
+    ) +
+
+    labs(title = titulo) +
+
+    theme_graph() +
+
+    theme(
+      legend.position = "bottom"
+    )
+}
+
+p1 <- graficar_red(g_petro, "Petro")
+p2 <- graficar_red(g_duque, "Duque")
+p3 <- graficar_red(g_santos, "Santos")
+p4 <- graficar_red(g_uribe, "Uribe")
+
+```
+
+```{r comparativo-gobiernos}
+(p1 | p2) /
+(p3 | p4)
+
+```
 
 ## c. Calcule medidas de centralidad para identificar cuáles son los funcionarios más influyentes dentro de cada red. A partir de estos resultados, construya visualizaciones decoradas que incorporen la informacion de centralidad de manera clara e informativa. Presente las visualizaciones de forma estratégica para comparar los resultados entre gobiernos. Finalmente, interprete los hallazgos de manera profunda, pero concisa, destacando sus posibles implicaciones políticas.
 
-## d. Analice cada una de las redes a nivel local y estructural mediante métricas de distancia, cohesion, conectividad y agrupamiento. Emplee un conjunto amplio de métricas que permita caracterizar de manera detallada las propiedades principales de cada red. Presente los resultados de forma estratégica, de modo que se facilite la comparacion entre gobiernos y se identifiquen similitudes, diferencias y cambios relevantes en la estructura de las redes de poder. Finalmente, interprete los hallazgos de manera profunda, pero concisa, destacando sus posibles implicaciones políticas.
+## d. Analice cada una de las redes a nivel local y estructural mediante métricas de distancia, cohesion, conectividad y agrupamiento. Emplee un conjunto amplio de métricas que permita caracterizar de manera detallada las propiedades principales de cada red. Presente los resultados de forma estratégica, de modo que se facilite la comparacion entre gobiernos y se identifiquen similitudes, diferencias y cambios relevantes en la estructura de las redes de poder. Finalmente, interprete los hallazgos de manera profunda, pero concisa, destacando sus posibles implicaciones políticas. {.tabset}
+
+### Distancia
+
+### Cohesión
+
+### Conectividad
+
+### Agrupamiento
 
 ## e. Ajuste, de manera independiente para cada red, un modelo de bloques estocásticos, un modelo de grafos aleatorios exponenciales y un modelo de socialidad con covariables. En el caso del modelo de grafos aleatorios exponenciales, incluya como términos del predictor lineal el número de aristas y las covariables con efectos homofílicos. Para el modelo de socialidad, incorpore también covariables con efectos homofílicos. Presente todos los resultados de forma estratégica, de modo que se facilite la comparacion entre gobiernos y se identifiquen diferencias relevantes en la estructura de las redes de poder. Finalmente, interprete los resultados de manera profunda, pero concisa, destacando sus posibles implicaciones políticas.
 
 ## f. Evalúe la bondad de ajuste de los modelos ajustados en el numeral anterior utilizando como estadísticos de prueba la densidad, la transitividad, la asortatividad y la distancia geodésica promedio. Presente los resultados en tablas y gráficos, interpretando detalladamente los hallazgos, identificando qué modelos capturan mejor las propiedades observadas en la red y limitando el análisis a un máximo de 1000 palabras.
 
-## g. Repita los numerales b., c. y d. para la red completa, sin filtrar por gobierno.
+## g. Repita los numerales b., c. y d. para la red completa, sin filtrar por gobierno. {.tabset}
+
+### Visualizaicón decorada
+
+### Centralidad
+
+### Análisis Local y estructural
 
 # Estructuras sociales cognitivas
 
