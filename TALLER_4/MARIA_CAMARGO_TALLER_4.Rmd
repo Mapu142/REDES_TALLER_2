@@ -25,6 +25,7 @@ library(readxl)
 library(dplyr)
 library(patchwork) # para juntar graficos de ggplot
 library(stringr) # para encontrar a los presidentes dentro de gobernación
+library(scales) # para reescalar por grado en mafia
 ```
 
 # Redes de poder en Colombia
@@ -1524,7 +1525,7 @@ plot(x = NA,
      xlab = "Grado", 
      ylab = "Densidad", 
      main = "")
-hist(d, freq = F, col = "gray90", border = "gray50", add = T)
+hist(d, freq = F, col = "gray90", border = "gray50", add = T, breaks=10)
 title(main = "Distribución del grado", outer = T, line = -2)
 ```
 
@@ -1626,6 +1627,29 @@ g <- graph_from_data_frame(
   d = datos,
   directed = TRUE
 )
+
+# table(E(G)$weight) G es no dirigida, pero el enunciado dice lo opuesto
+# table(E(g)$weight) son iguales entonces copiare el role de G a g
+# all.equal(
+#     as_adjacency_matrix(
+#        as_undirected(g),
+#        attr = "weight"
+#    ),
+#    as_adjacency_matrix(
+#        G,
+#        attr = "weight"
+#    )
+#)
+# [1] TRUE  -> son iguales
+
+V(g)$role <- V(G)$role
+
+V(g)$clan <- str_extract(
+  V(g)$role,
+  "(?<=family '').*?(?='')"
+)
+
+V(g)$clan[is.na(V(g)$clan)] <- "Sin clan"
 
 resumen <- data.frame(
   Propiedad = c(
@@ -1756,9 +1780,88 @@ tabla.3bconectividad %>%
   kableExtra::kable_minimal()
 ```
 
-### Componentes
+### Clanes
 
-```{r 3b-componentes-mafia, message=FALSE, warning=FALSE}
+Para la elaboración del gráfico se tuvo ne cuenta la familia a la cual pertenecía o estaba relacionado, mientras que l profesiones y datos faltantes se consideraron como *sin clan*.
+
+```{r}
+V(g)$size <- rescale(
+  degree(g),
+  to = c(6, 20)
+)
+
+clanes <- unique(V(g)$clan)
+
+cols <- setNames(
+  rainbow(length(clanes)),
+  clanes
+)
+
+## opcional: que los no afiliados sean grises
+cols["Sin clan"] <- "gray80"
+
+V(g)$color <- cols[V(g)$clan]
+
+set.seed(1101)
+
+lay <- layout_with_fr(g)
+```
+
+```{r mafia-clanes, fig.cap="Red de relaciones coloreada por clan"}
+plot(
+  g,
+  layout = lay,
+  vertex.size = V(g)$size,
+  vertex.color = V(g)$color,
+  vertex.label = NA,
+  edge.color = adjustcolor("gray60", alpha.f = 0.4),
+  edge.arrow.size = 0.2,
+  main = "Red de relaciones coloreada por clan"
+)
+
+legend(
+  "topleft",
+  legend = names(cols),
+  col = cols,
+  pch = 19,
+  pt.cex = 1.5,
+  bty = "n",
+  title = "Clan"
+)
+```
+
+## c. Evaluar la importancia estructural de los nodos mediante grado, fuerza y medidas de centralidad, estudiar la cohesion de la red a través de cliques, densidad y transitividad, y apoyar la interpretacion con visualizaciones adecuadas. {.tabset}
+
+### Centralidad
+
+```{r 3c centralidad, echo=FALSE}
+# medidas de centralidad
+dc <- degree(g, normalized = T)
+cc <- closeness(g, normalized = T)
+bc <- betweenness(g, normalized = T)
+ec <- eigen_centrality(g)$vector
+medidas_1gcentralidad <- data.frame(
+  'Medidas/Departamento'= c('Grado','Cercania','Intermediacion','Propio'),
+  Media=c(mean(dc),mean(cc, na.rm = T),mean(bc), mean(ec)),
+      'Desv.Est.' = c(sd(dc), sd(cc, na.rm = T), sd(bc), sd(ec))
+)
+
+names(medidas_1gcentralidad) <- c('Medidas',
+                                 'Media','Desviacion Estandar')
+```
+
+```{r centralidad-mafia, tab.cap="Medidas de centralidad"}
+medidas_1gcentralidad %>% 
+  kableExtra::kbl(
+    caption = "Resultados",
+    digits = 3
+  ) %>% 
+  kableExtra::kable_minimal()
+```
+
+### Cohesión
+
+```{r 3c-cohesión-mafia, message=FALSE, warning=FALSE}
 tabla_cliques <- sapply(
   X = seq_len(clique_num(g)),
   FUN = \(k) {
@@ -1812,6 +1915,10 @@ g_gc <- induced_subgraph(
   giant_id
 )
 
+densidad2c <- data.frame(
+  Red=c("Componente gigante","Red completa"),
+  Densidad = c(edge_density(g_gc),edge_density(g))
+)
 
 
 ```
@@ -1826,87 +1933,197 @@ tabla_cliques %>%
     kableExtra::kable_minimal()
 ```
 
-## c. Evaluar la importancia estructural de los nodos mediante grado, fuerza y medidas de centralidad, estudiar la cohesion de la red a través de cliques, densidad y transitividad, y apoyar la interpretacion con visualizaciones adecuadas.
+```{r tabla-densidad-mafia, tab.cap="Densidad de las componentes gigantes de la red completa"}
+densidad2c %>% 
+  kableExtra::kbl(
+    caption = "Densidad de las componentes gigantes de la red completa",
+    digits = 3
+  ) %>% 
+  kableExtra::kable_minimal()
+```
+
+### Transitividad
+
+```{r message=FALSE, warning=FALSE}
+# Transitividad local
+tabla_1c_transitividadg <- transitivity(
+  graph = g,
+  type = "local"
+)
+
+tabla_1c_transitividadg[is.nan(tabla_1c_transitividadg)] <- NA
+
+# Transitividad global
+trans_global <- transitivity(
+  graph = g,
+  type = "global"
+)
+
+# Datos para el histograma
+df <- data.frame(
+  transitividad = tabla_1c_transitividadg
+)
+
+# Gráfico
+grafico_transitividad <-
+  ggplot(df, aes(x = transitividad)) +
+  geom_histogram(
+    col = "gray24",
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Distribución de la transitividad local",
+    x = "Transitividad local",
+    y = "Frecuencia"
+  ) +
+  geom_vline(
+    aes(
+      xintercept = trans_global,
+      color = "Global"
+    ),
+    linewidth = 1.2
+  ) +
+  annotate(
+    "text",
+    x = trans_global,
+    y = Inf,
+    label = round(trans_global, 3),
+    vjust = 2,
+    color = "black"
+  ) +
+  scale_color_manual(
+    name = "",
+    values = c(Global = "gray49")
+  ) +
+  theme_minimal()
+
+```
+
+```{r tl-mafia, fig.cap="Distribución de la transitividad local en la red completa", fig.height=9, fig.width=7, message=FALSE, warning=FALSE}
+grafico_transitividad
+```
+
 
 ## d. Aplicar y comparar métodos de deteccion de comunidades, evaluar la modularidad de las particiones, analizar la asortatividad por grado y por clan si corresponde, contrastar las comunidades detectadas con los clanes conocidos y visualizar la particion más adecuada.
+
+Para este inciso se decidió usar la versión no dirigida (*G*) para poder comparar varios métodos de cluster.
 
 ```{r 3d-clusters-mafia, echo=FALSE, message=FALSE, warning=FALSE}
 
 clusters_lista <- list(
-  kc = cluster_fast_greedy,
-  clb = cluster_edge_betweenness,
-  cw = cluster_walktrap,
-  ci = cluster_infomap
+  FastGreedy = \(x)
+    cluster_fast_greedy(
+      x,
+      weights = E(x)$weight
+    ),
+
+  Walktrap = \(x)
+    cluster_walktrap(
+      x,
+      weights = E(x)$weight
+    ),
+
+  Leiden = \(x)
+    cluster_leiden(
+      x,
+      weights = E(x)$weight
+    ),
+
+  LabelPropagation = \(x)
+    cluster_label_prop(
+      x,
+      weights = E(x)$weight
+    )
 )
 
 # Ejecutar todos los algoritmos
 clusters_coords <- lapply(
   clusters_lista,
-  \(f) f(g_poder)
+  \(f) f(G)
 )
 
 # Layout
 set.seed(831)
-layout_kk <- layout_with_kk(g_poder)
+layout_kk <- layout_with_kk(G)
 
-# Elegir el clustering con mayor modularidad
-mods <- sapply(clusters_coords, modularity)
+tabla_clusters <- data.frame(
+  Algoritmo = names(clusters_coords),
+  Comunidades = sapply(
+    clusters_coords,
+    \(x) length(sizes(x))
+  ),
+  Modularidad = sapply(
+    clusters_coords,
+    \(x)
+      igraph::modularity(
+        G,
+        membership = membership(x),
+        weights = E(G)$weight
+      )
+  )
+)
+
+
+```
+
+```{r clusters-mafia, tab.cap="Modularidad de los algoritmos con respecto a las familias (clanes)"}
+tabla_clusters  %>% 
+  kableExtra::kbl(
+    caption = "Modularidad de los algoritmos con respecto a las familias (clanes)",
+    digits = 3
+  ) %>% 
+  kableExtra::kable_minimal()
+```
+
+
+```{r}
+
+mods <- tabla_clusters$Modularidad
 
 validacion2dclusters <- clusters_coords[[which.max(mods)]]
 
-par(mfrow = c(1, 2), oma = c(0, 0, 3, 0))
+V(G)$clan <- str_extract(
+  V(G)$role,
+  "(?<=family '').*?(?='')"
+)
 
+V(G)$clan[is.na(V(G)$clan)] <- "Sin clan"
+
+```
+
+```{r conteo-comunidades-mafia, tab.cap="Frecuencia entre comunidades y familias (clanes)"}
+table(
+  Clan = V(G)$clan,
+  Comunidad = membership(validacion2dclusters)
+) %>% 
+  kableExtra::kbl(
+    caption = "Frecuencia entre comunidades y familias (clanes)",
+    digits = 3
+  ) %>% 
+  kableExtra::kable_minimal()
+
+
+```
+
+```{r}
 ord <- order(
   sizes(validacion2dclusters),
   decreasing = TRUE
 )[1:min(10, length(sizes(validacion2dclusters)))]
+```
 
+
+```{r cluster-mafia, fig.cap="Visualización del mejor cluster de acuerdo a modularidad"}
 plot(
   validacion2dclusters,
-  g_poder,
+  G,
   layout = layout_kk,
   vertex.size = 12,
   vertex.label = NA
 )
 
-plot.new()
-
-legend(
-  "center",
-  legend = c(
-    "Top 10 clusters:",
-    paste0(
-      " - Cluster ",
-      ord,
-      " (n = ",
-      sizes(validacion2dclusters)[ord],
-      ")"
-    )
-  ),
-  col = c(
-    NA,
-    rainbow(length(sizes(validacion2dclusters)))[ord]
-  ),
-  pch = c(
-    NA,
-    rep(19, length(ord))
-  ),
-  pt.cex = 1.5,
-  bty = "n"
-)
-
-mtext(
-  paste(
-    "Clustering mediante",
-    validacion2dclusters$algorithm
-  ),
-  outer = TRUE,
-  side = 3,
-  line = 1.5,
-  cex = 1.1
-)
-
 ```
+
 
 
 ## e. Ajustar los modelos considerados previamente incorporando la informacion nodal relevante cuando sea pertinente, presentar e interpretar sus resultados mediante tablas y gráficos, evaluar su bondad de ajuste con base en densidad, transitividad, asortatividad y distancia geodésica promedio, y comparar su capacidad predictiva mediante validacion cruzada de 5 particiones. Las secciones de bondad de ajuste y capacidad predictiva deben tener una extension máxima de 1000 palabras cada una.
