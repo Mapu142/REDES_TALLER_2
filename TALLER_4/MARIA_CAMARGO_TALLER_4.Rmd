@@ -190,6 +190,16 @@ p3
 p4
 ```
 
+## Discusión
+
++ En la red del gobierno de Gustavo Petro se observa una proporción visual similar de hombres y mujeres. Aunque el presidente pertenece al **Pacto Histórico**, la red de funcionarios está conformada principalmente por miembros de partidos distintos a los tradicionales. Además, se evidencia la ausencia de integrantes del **Centro Democrático** y de **Cambio Radical**. En general, todos los partidos representados parecen tener cierta participación en la red, ya que cada uno cuenta con al menos algunos nodos de tamaño relativamente mayor (determinado por el grado).
+
++ En el gobierno de Iván Duque también se aprecia una proporción visual similar de hombres y mujeres. Aunque la red está integrada mayoritariamente por miembros de partidos distintos a los tradicionales, los nodos con mayor grado pertenecen en su mayoría al **Centro Democrático**, partido del que hacía parte el presidente. Esto podría sugerir una mayor centralidad de funcionarios de este partido dentro de la red. Asimismo, se observa la ausencia de miembros del **Pacto Histórico**.
+
++ En el gobierno de Juan Manuel Santos (considerando sus dos periodos presidenciales) se observa una mayor proporción de hombres que de mujeres. La red incluye representantes de todos los partidos analizados y está conformada principalmente por miembros de partidos distintos a los tradicionales. Sin embargo, los nodos con mayor grado pertenecen en su mayoría al **Partido de la U**, colectividad de la cual Santos fue cofundador, lo que podría reflejar una mayor centralidad de sus integrantes en la estructura de la red.
+
++ En el gobierno de Álvaro Uribe (considerando sus dos periodos presidenciales) también se evidencia una mayor proporción de hombres que de mujeres. Aunque la red está integrada principalmente por miembros de partidos distintos a los tradicionales, los nodos más centrales corresponden en su mayoría al **Centro Democrático**, partido con el que se encuentra asociado el expresidente. Este patrón podría ser consistente con una mayor presencia de funcionarios de dicha colectividad en posiciones centrales de la red. Asimismo, se observa la ausencia de miembros del **Pacto Histórico**.
+
 ## c. Calcule medidas de centralidad para identificar cuáles son los funcionarios más influyentes dentro de cada red. A partir de estos resultados, construya visualizaciones decoradas que incorporen la informacion de centralidad de manera clara e informativa. Presente las visualizaciones de forma estratégica para comparar los resultados entre gobiernos. Finalmente, interprete los hallazgos de manera profunda, pero concisa, destacando sus posibles implicaciones políticas.
 
 ```{r 1c centralidad, echo=FALSE}
@@ -241,17 +251,27 @@ medidas_1ccentralidad %>%
   kableExtra::kable_minimal()
 ```
 
++ **Grado.** Los cuatro gobiernos presentan un grado medio relativamente bajo (entre 0.047 y 0.078), lo que indica que, en promedio, los funcionarios están conectados con una pequeña proporción de los demás actores de la red. Santos y Uribe presentan los mayores grados medios, sugiriendo redes ligeramente más conectadas. La desviación estándar es considerable respecto a la media, lo que indica que existen actores mucho más conectados que otros.
+
++ **Cercanía.** Duque presenta la mayor cercanía promedio (0.675), seguido por Petro (0.595), mientras que Santos registra la menor (0.441). Esto sugiere que, en promedio, los funcionarios del gobierno de Duque pueden alcanzar al resto de actores mediante caminos más cortos que en los demás gobiernos. Las desviaciones estándar (entre 0.196 y 0.325) muestran que esta capacidad no es uniforme entre los nodos.
+
++ **Intermediación.** Los valores promedio son bajos en todos los gobiernos (0.007–0.015), indicando que la mayoría de los actores rara vez actúan como puentes entre otros. No obstante, las desviaciones estándar superan incluso la media, lo que sugiere que unos pocos nodos concentran gran parte de la intermediación mientras la mayoría tiene valores cercanos a cero.
+
++ **Centralidad de vector propio (eigenvector).** Uribe presenta el mayor promedio (0.218), seguido por Santos (0.185), Duque (0.157) y Petro (0.148). Esto indica que, en promedio, los actores de la red de Uribe están algo más conectados con otros actores importantes. De nuevo, las desviaciones estándar relativamente altas evidencian una distribución desigual de esta centralidad.
+
 ## d. Analice cada una de las redes a nivel local y estructural mediante métricas de distancia, cohesion, conectividad y agrupamiento. Emplee un conjunto amplio de métricas que permita caracterizar de manera detallada las propiedades principales de cada red. Presente los resultados de forma estratégica, de modo que se facilite la comparacion entre gobiernos y se identifiquen similitudes, diferencias y cambios relevantes en la estructura de las redes de poder. Finalmente, interprete los hallazgos de manera profunda, pero concisa, destacando sus posibles implicaciones políticas. {.tabset}
+
+El análisis de cada métrica está dentro de cada pestaña.
 
 ### Distancia
 
 ```{r 2c distancia, echo=FALSE}
 tabla2cdistancia <- data.frame(
   'Medidas/departamento'=c("Orden",
-                           "Tamano",
+                           "Tamaño",
                            "Orden de la componente gigante",
-                           "Diametro del grafo",
-                           "Camino del diametro",
+                           "Diámetro del grafo",
+                           "Camino del diámetro",
                            "distancia media")
                            )
 
@@ -282,6 +302,8 @@ tabla2cdistancia %>%
                   digits=3) %>% 
   kableExtra::kable_minimal()
 ```
+
+Las cuatro redes presentan cierto grado de fragmentación, ya que la componente gigante no incluye a la totalidad de los actores. No obstante, el gobierno de Santos es el menos fragmentado, pues cerca del 79 % de los nodos pertenecen a la componente principal, seguido por Uribe (66 %), Petro (59 %) y Duque (45 %), siendo este último el gobierno con mayor fragmentación. En cuanto a las distancias geodésicas, las cuatro redes muestran valores muy similares: la distancia media se sitúa alrededor de tres pasos y el diámetro varía únicamente entre seis y siete. Esto sugiere que, dentro de las componentes conectadas, los actores pueden alcanzarse mediante pocos intermediarios y que la extensión máxima de las rutas más largas es comparable entre todos los gobiernos.
 
 ### Cohesión
 
@@ -400,6 +422,8 @@ densidad2c %>%
   kableExtra::kable_minimal()
 ```
 
+En los cuatro gobiernos, la mayor parte de los cliques maximales corresponde a grupos pequeños de entre uno y tres actores. No obstante, existen diferencias en los cliques de mayor tamaño. El gobierno de Duque destaca por presentar 14 cliques de dos actores, mientras que Petro sobresale por contar con 12 cliques de cuatro actores. Por su parte, Santos presenta cinco cliques de seis actores y, además, concentra una mayor cantidad de cliques de siete y ocho actores, a pesar de ser la red con menor densidad global. Esto sugiere que, aunque la red de Santos es menos densa en términos generales, contiene varios subgrupos altamente cohesionados.
+
 ### Conectividad
 
 ```{r 1c conectividad, echo=FALSE}
@@ -433,6 +457,8 @@ tabla.1cconectividad %>%
                     digits = 3) %>% 
   kableExtra::kable_minimal()
 ```
+
+Ninguna de las cuatro redes es conexa, por lo que tanto la conectividad nodal como la conectividad por aristas son iguales a cero. No obstante, todas presentan puntos de articulación, es decir, actores cuya eliminación incrementaría la fragmentación de la componente a la que pertenecen. Este patrón se observa incluso en las redes con mayor densidad (Duque y Uribe), lo que sugiere que una mayor densidad global no necesariamente implica una estructura más robusta frente a la eliminación de actores clave. En estas redes existen funcionarios que desempeñan un papel fundamental como puentes entre distintos grupos.
 
 ### Agrupamiento
 
@@ -520,6 +546,8 @@ for (i in 1:length(tabla.1ctransitividadg)) {
     title = "Distribución de la transitividad local por gobierno"
   )
 ```
+
+Los cuatro gobiernos presentan niveles similares de transitividad global, con valores entre 0.629 y 0.652, lo que evidencia una elevada tendencia al agrupamiento local de los actores. Además, la distribución de la transitividad local presenta un sesgo hacia la izquierda, indicando que la mayor parte de los nodos posee valores relativamente altos de transitividad, mientras que son pocos los actores con coeficientes bajos. Esto sugiere que los funcionarios suelen formar grupos donde sus vecinos también se encuentran conectados entre sí.
 
 ```{r 1c clusters, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -613,6 +641,7 @@ for (i in seq_along(validacion2dclusters)) {
 
 ```
 
+En cuanto a la detección de comunidades, el algoritmo Infomap obtuvo los mayores valores de modularidad en las redes de Petro y Duque, mientras que en las redes de Santos y Uribe el mejor desempeño correspondió al algoritmo basado en betweenness. Las diferencias en la modularidad sugieren que la organización interna de las redes varía entre gobiernos. En algunos casos las comunidades se identifican mejor mediante el flujo de información (Infomap), mientras que en otros resulta más efectiva la eliminación progresiva de aristas con alta intermediación (betweenness), reflejando distintas formas de organización estructural.
 
 ## e. Ajuste, de manera independiente para cada red, un modelo de bloques estocásticos, un modelo de grafos aleatorios exponenciales y un modelo de socialidad con covariables. En el caso del modelo de grafos aleatorios exponenciales, incluya como términos del predictor lineal el número de aristas y las covariables con efectos homofílicos. Para el modelo de socialidad, incorpore también covariables con efectos homofílicos. Presente todos los resultados de forma estratégica, de modo que se facilite la comparacion entre gobiernos y se identifiquen diferencias relevantes en la estructura de las redes de poder. Finalmente, interprete los resultados de manera profunda, pero concisa, destacando sus posibles implicaciones políticas.
 
@@ -727,6 +756,8 @@ medidas_1gcentralidad %>%
   kableExtra::kable_minimal()
 ```
 
+La red completa presenta un grado medio de 0.058, indicando que, en promedio, cada actor se encuentra conectado con una pequeña proporción del total de funcionarios. La cercanía promedio es de 0.341 y muestra una baja variabilidad (desviación estándar de 0.055), lo que sugiere que la capacidad de alcanzar al resto de los actores es relativamente homogénea entre los nodos de la red. Por su parte, la intermediación promedio continúa siendo baja (0.008), indicando que la mayoría de los funcionarios no actúa como puente entre otros actores. Finalmente, la centralidad de vector propio presenta la mayor variabilidad (media de 0.171 y desviación estándar de 0.222), lo que evidencia que unos pocos actores concentran una posición privilegiada al estar conectados con otros nodos altamente centrales, mientras que la mayoría posee valores reducidos de esta medida.
+
 ### Análisis Local y estructural {.tabset}
 
 #### Distancia
@@ -734,10 +765,10 @@ medidas_1gcentralidad %>%
 ```{r 1c-distancia-poder, echo=FALSE}
 tabla1cdistancia <- data.frame(
   'Medidas/departamento'=c("Orden",
-                           "Tamano",
+                           "Tamaño",
                            "Orden de la componente gigante",
-                           "Diametro del grafo",
-                           "Camino del diametro",
+                           "Diámetro del grafo",
+                           "Camino del diámetro",
                            "distancia media"),
   valor = c(vcount(g_poder),
               ecount(g_poder),
@@ -759,6 +790,8 @@ tabla1cdistancia %>%
                   digits=3) %>% 
   kableExtra::kable_minimal()
 ```
+
+A diferencia de las redes individuales por gobierno, la red completa es conexa, ya que la componente gigante incluye la totalidad de los 265 nodos. Además, el aumento en el tamaño de la red no implica un incremento importante en las distancias entre actores: la distancia media es de aproximadamente tres pasos y el diámetro permanece en siete, valores muy similares a los obtenidos para cada gobierno por separado. Esto sugiere que, al considerar conjuntamente todos los funcionarios, la red mantiene una estructura relativamente compacta, en la que los actores pueden alcanzarse mediante pocos intermediarios.
 
 #### Cohesión
 
@@ -825,8 +858,7 @@ densidad2c <- data.frame(
 ```
 
 ```{r cliques-poder, tab.cap="Cliques en la red completa de los gobiernos"}
-names(tabla_cliques[[1]]) <- c('Tamaño clique','cantidad de cliques')
-  tabla_cliques[[1]] %>%
+tabla_cliques %>%
     kableExtra::kbl(
       caption = "Clanes y su Frecuencia para toda la red",
       digits = 3,
@@ -834,6 +866,8 @@ names(tabla_cliques[[1]]) <- c('Tamaño clique','cantidad de cliques')
     ) %>%
     kableExtra::kable_minimal()
 ```
+
+En la red completa se observa una mayor diversidad en el tamaño de los cliques maximales. Aunque predominan los cliques pequeños, especialmente de tres y cuatro actores, también se identifican grupos altamente cohesionados de gran tamaño, alcanzando hasta 23 actores. Esto indica que, al integrar los cuatro gobiernos en una única red, emergen comunidades más amplias cuyos miembros se encuentran completamente conectados entre sí.
 
 ```{r tabla-densidad-poder, tab.cap="Densidad de las componentes gigantes de la red completa"}
 densidad2c %>% 
@@ -844,13 +878,11 @@ densidad2c %>%
   kableExtra::kable_minimal()
 ```
 
+La densidad de la componente gigante coincide con la de la red completa (0.058), debido a que toda la red forma una única componente conexa. En términos generales, la red es relativamente dispersa, ya que solo alrededor del 5.8 % de las conexiones posibles están presentes. Sin embargo, esta baja densidad global no impide la existencia de cliques de gran tamaño, lo que evidencia la presencia de subgrupos altamente cohesionados dentro de una estructura general más dispersa.
+
 #### Conectividad
 
 ```{r 1c-conectividad-poder, echo=FALSE}
-# frecuencias de clanes
-#table(sapply(X = cliques(graph = g_sym, min = 1,
- #                        max = clique_num(graph = g_sym)),
-  #           FUN = length))
 tabla.1cconectividad <- data.frame(Medidas=c(
   "¿Está conectado", 
   "Conectividad nodal", 
@@ -871,6 +903,8 @@ tabla.1cconectividad %>%
                     digits = 3) %>% 
   kableExtra::kable_minimal()
 ```
+
+A diferencia de las redes individuales por gobierno, la red completa es conexa, por lo que existe al menos un camino entre cualquier par de actores. En consecuencia, la conectividad nodal y la conectividad por aristas toman el valor de 1. Esto indica que la eliminación de un único nodo o de una única arista es suficiente para desconectar la red, por lo que, aunque la red está completamente conectada, presenta una baja robustez estructural frente a la pérdida de actores o vínculos clave.
 
 #### Agrupamiento
 
@@ -932,6 +966,8 @@ grafico_transitividad <-
 ```{r mosaico-tl-poder, fig.cap="Distribución de la transitividad local en la red completa", fig.height=9, fig.width=7, message=FALSE, warning=FALSE}
 grafico_transitividad
 ```
+
+La red completa presenta una transitividad global de 0.659, lo que indica una elevada tendencia a la formación de triángulos y, por tanto, de grupos de actores cuyos vecinos también se encuentran conectados entre sí. Asimismo, la distribución de la transitividad local presenta un sesgo hacia la izquierda, evidenciando que la mayoría de los nodos posee coeficientes de transitividad relativamente altos, mientras que son pocos los actores con valores bajos. Esto sugiere que el agrupamiento local es una característica predominante de la red.
 
 ```{r 1c-clusters-poder, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -1010,6 +1046,8 @@ mtext(
 )
 
 ```
+
+En cuanto a la detección de comunidades, el algoritmo basado en betweenness obtuvo el mayor valor de modularidad, por lo que fue el método que mejor identificó la estructura comunitaria de la red completa entre los algoritmos evaluados.
 
 # Estructuras sociales cognitivas
 
@@ -1456,15 +1494,39 @@ tabla <- data.frame(Red=nombres,
 
 ```
 
-```{r tabla_actores, echo=FALSE, message=FALSE, warning=FALSE, tab.cap="Comparación entre los actores y la red de consenso utilizando diferentes estadísticos"}
+```{r tabla-actores, echo=FALSE, message=FALSE, warning=FALSE, tab.cap="Comparación entre los actores y la red de consenso utilizando diferentes estadísticos"}
 tabla %>% 
   kableExtra::kbl() %>%
   kableExtra::kable_paper("striped", full_width = F) %>%
   kableExtra::column_spec(1:6, bold = T) %>%
-  kableExtra::row_spec(3:5, bold = T, color = "white", background = "#D7261E")
+  kableExtra::row_spec(c(3,7,8,9,15,19), bold = T, color = "white", background = "#D7261E")
 ```
 
+En términos generales, la red de consenso presenta características que se ubican dentro del rango observado en las percepciones individuales, sin representar los valores extremos de ninguna métrica. Esto indica que el procedimiento de consenso logra sintetizar la información proporcionada por los 21 actores, reteniendo principalmente las relaciones de amistad que cuentan con un respaldo compartido por una proporción importante del grupo.
+
+La densidad moderada refleja que el consenso descarta muchas relaciones percibidas únicamente por unos pocos individuos, mientras que la alta reciprocidad evidencia que las amistades conservadas suelen ser reconocidas de manera mutua. Asimismo, la transitividad global muestra que la red mantiene cierto grado de cohesión local mediante la presencia de tríadas cerradas, aunque en menor medida que las percepciones más optimistas.
+
+Un resultado particularmente relevante es que todas las redes, incluida la de consenso, presentan exactamente tres componentes, lo que sugiere que la fragmentación general del sistema es una característica robusta y consistente entre las distintas percepciones. En otras palabras, aunque los actores difieren en el número de amistades que reconocen, existe un acuerdo considerable respecto a la estructura global de conectividad de la red.
+
 ### Distribución del grado
+
+```{r}
+d <- degree(graph = grafos21[[22]])
+```
+
+```{r distribucion-grado, fig.cap="Distribución del grado de la red de consenso"}
+# histograma
+plot(x = NA, 
+     y = NA, 
+     type = "n", 
+     xlim = c(0,15), 
+     ylim = c(0,0.5), 
+     xlab = "Grado", 
+     ylab = "Densidad", 
+     main = "")
+hist(d, freq = F, col = "gray90", border = "gray50", add = T)
+title(main = "Distribución del grado", outer = T, line = -2)
+```
 
 ## c. Calcule el grado normalizado para cada actor en todas las percepciones individuales y en la red de consenso. Construya diagramas de caja para cada actor, mostrando la distribucion de su grado a través de las percepciones y el consenso. Distinga el grado basado en la percepcion propia de cada actor con un triángulo rojo ($\triangle$) y el grado basado en la red de consenso con una cruz azul ($\times$). Incluya todos los diagramas de caja en un único gráfico. Un ejemplo de este tipo de gráfico puede encontrarse en este enlace, página 9. Analice si los actores tienen una percepcion adecuada de su rol dentro del sistema social y limite la interpretacion de los resultados a un máximo de 1000 palabras.
 
@@ -1551,12 +1613,300 @@ Nota: El modelo de sociabilidad se encuentra disponible en https://rpubs.com/jst
 
 El objetivo de este taller es analizar la estructura de una red social derivada de la orden de detencion preventiva emitida por el Tribunal de Messina en marzo de 2007, en el marco de la operacion anti mafia “Montagna”. La investigacion se centro en la familia “Mistretta” y el clan “Batanesi”, que infiltraron diversas actividades economicas entre 2003 y 2007. Los datos se encuentran en el archivo *mafia.RData*. La red representa individuos y relaciones asociadas con actividades ilícitas, donde los nodos corresponden a personas o entidades y los arcos a relaciones de influencia o interaccion. La red es dirigida y ponderada.
 
-## a. Explorar la estructura de los datos de nodos y aristas, identificar la informacion relevante para el análisis, verificar si la red es simple y ponderada, construir la red, calcular su orden y tamaño, generar una visualizacion inicial e identificar los nodos más conectados.
+## a. Explorar la estructura de los datos de nodos y aristas, identificar la informacion relevante para el análisis, verificar si la red es simple y ponderada, construir la red, calcular su orden y tamaño, generar una visualizacion inicial e identificar los nodos más conectados. {.tabset}
 
-## b. Analizar la estructura global de la red mediante el grado nodal, la conectividad, los componentes, el diámetro y las distancias geodésicas, complementando el estudio con una visualizacion en la que los nodos se distingan por clan y tamaño según su grado.
+### Resumen
+
+```{r mafia}
+load("C:/PERSONAL_MAPU/UNIVERSIDADES/NACIONAL/ANALISIS_ESTADISTICO_DE_REDES/TALLER_3/REDES_TALLER_2/TALLER_4/mafia.rdata")
+
+
+names(datos) <- c("from", "to", "weight")
+g <- graph_from_data_frame(
+  d = datos,
+  directed = TRUE
+)
+
+resumen <- data.frame(
+  Propiedad = c(
+    "Red simple",
+    "Red ponderada",
+    "Red dirigida",
+    "Orden",
+    "Tamaño"
+  ),
+  Valor = c(
+    is_simple(g),
+    is_weighted(g),
+    is_directed(g),
+    vcount(g),
+    ecount(g)
+  )
+)
+
+
+```
+
+```{r tabla-mafia, echo=FALSE, message=FALSE, warning=FALSE, tab.cap="Resumen de l red de Mafia"}
+resumen %>% 
+  kableExtra::kbl(caption='Resumen', 
+                  digits=3) %>% 
+  kableExtra::kable_minimal()
+```
+
+### Visualización
+
+```{r fig.height=12, fig.width=9}
+set.seed(2105)
+
+plot(
+  g,
+  vertex.size = 8,
+  vertex.label = NA,
+  edge.color = "gray70"
+)
+```
+
+### Nodos más conectados
+
+```{r}
+
+grado <- degree(g)
+top10 <- data.frame(
+  nodo = names(grado),
+  grado = grado
+)
+
+top10 <- top10  %>% 
+  dplyr::arrange(desc(grado))  %>% 
+  dplyr::slice(1:10)
+row.names(top10) <- NULL
+```
+
+```{r grado-mafia, echo=FALSE, message=FALSE, warning=FALSE, tab.cap="Top 10 nodos con mayor grado"}
+top10 %>% 
+  kableExtra::kbl(caption='Top 10 nodos con mayor grado', 
+                  digits=3) %>% 
+  kableExtra::kable_minimal()
+```
+
+## b. Analizar la estructura global de la red mediante el grado nodal, la conectividad, los componentes, el diámetro y las distancias geodésicas, complementando el estudio con una visualizacion en la que los nodos se distingan por clan y tamaño según su grado. {.tabset}
+
+### Distribución del grado
+
+```{r}
+d <- degree(graph = g)
+```
+
+```{r distribucion-grado-mafia, fig.cap="Distribución del grado de la red"}
+# histograma
+plot(x = NA, 
+     y = NA, 
+     type = "n", 
+     xlim = c(0,35), 
+     ylim = c(0,0.5), 
+     xlab = "Grado", 
+     ylab = "Densidad", 
+     main = "")
+hist(d, freq = F, col = "gray90", border = "gray50", add = T, breaks = 25)
+title(main = "Distribución del grado", outer = T, line = -2)
+```
+
+### Distribución de las distancias geodésicas
+
+```{r}
+d <- distances(graph = g)
+```
+
+```{r distribucion-distancias-mafia, fig.cap="Distribución de las distancias geodésicas de la red"}
+# histograma
+plot(x = NA, 
+     y = NA, 
+     type = "n", 
+     xlim = c(0,15), 
+     ylim = c(0,0.7), 
+     xlab = "Grado", 
+     ylab = "Densidad", 
+     main = "")
+hist(d, freq = F, col = "gray90", border = "gray50", add = T, breaks = 25)
+title(main = "Distribución de las distancias geodésicas", outer = T, line = -2)
+```
+
+### Conectividad 
+
+```{r 3b-conectividad-mafia, echo=FALSE}
+tabla.3bconectividad <- data.frame(Medidas=c(
+  "¿Está conectado", 
+  "Conectividad nodal", 
+  "Conectividad por aristas", 
+  "Puntos de artículación"
+),
+Valores=c(is_connected(g),
+             vertex_connectivity(g),
+             edge_connectivity(g),
+             paste(names(articulation_points(g)),
+                   collapse = ";")))
+
+```
+
+```{r tabla-conectividad-mafia, tab.cap='Comparación de métricas de conectividad'}
+tabla.3bconectividad %>% 
+  kableExtra::kbl(caption = 'Métricas de conectividad',
+                    digits = 3) %>% 
+  kableExtra::kable_minimal()
+```
+
+### Componentes
+
+```{r 3b-componentes-mafia, message=FALSE, warning=FALSE}
+tabla_cliques <- sapply(
+  X = seq_len(clique_num(g)),
+  FUN = \(k) {
+    count_max_cliques(g, min = k, max = k)
+  }
+)
+
+tabla_cliques <- data.frame(
+  clique = seq_along(tabla_cliques),
+  frecuencia = tabla_cliques
+)
+
+tabla_cliques <- dplyr::filter(
+  tabla_cliques,
+  frecuencia != 0
+)
+
+clanes_maximales <- largest_cliques(g)
+
+par(mfrow = c(1, 1), mar = c(1, 1, 3, 1))
+
+for (k in seq_along(clanes_maximales)) {
+
+  clan_maximal <- induced_subgraph(
+    g,
+    vids = clanes_maximales[[k]]
+  )
+
+  plot(
+    clan_maximal,
+    main = paste(
+      "Clan maximal",
+      k,
+      "- Orden",
+      vcount(clan_maximal)
+    ),
+    vertex.size = 25,
+    vertex.label = "",
+    vertex.color = "steelblue",
+    vertex.frame.color = "black",
+    edge.color = "gray30"
+  )
+}
+
+comp <- components(g)
+
+giant_id <- which(comp$membership == which.max(comp$csize))
+
+g_gc <- induced_subgraph(
+  g,
+  giant_id
+)
+
+
+
+```
+
+```{r cliques-mafia, tab.cap="Cliques en la red completa de los gobiernos"}
+tabla_cliques %>%
+    kableExtra::kbl(
+      caption = "Clanes y su Frecuencia para toda la red",
+      digits = 3,
+      format = 'html'
+    ) %>%
+    kableExtra::kable_minimal()
+```
 
 ## c. Evaluar la importancia estructural de los nodos mediante grado, fuerza y medidas de centralidad, estudiar la cohesion de la red a través de cliques, densidad y transitividad, y apoyar la interpretacion con visualizaciones adecuadas.
 
 ## d. Aplicar y comparar métodos de deteccion de comunidades, evaluar la modularidad de las particiones, analizar la asortatividad por grado y por clan si corresponde, contrastar las comunidades detectadas con los clanes conocidos y visualizar la particion más adecuada.
+
+```{r 3d-clusters-mafia, echo=FALSE, message=FALSE, warning=FALSE}
+
+clusters_lista <- list(
+  kc = cluster_fast_greedy,
+  clb = cluster_edge_betweenness,
+  cw = cluster_walktrap,
+  ci = cluster_infomap
+)
+
+# Ejecutar todos los algoritmos
+clusters_coords <- lapply(
+  clusters_lista,
+  \(f) f(g_poder)
+)
+
+# Layout
+set.seed(831)
+layout_kk <- layout_with_kk(g_poder)
+
+# Elegir el clustering con mayor modularidad
+mods <- sapply(clusters_coords, modularity)
+
+validacion2dclusters <- clusters_coords[[which.max(mods)]]
+
+par(mfrow = c(1, 2), oma = c(0, 0, 3, 0))
+
+ord <- order(
+  sizes(validacion2dclusters),
+  decreasing = TRUE
+)[1:min(10, length(sizes(validacion2dclusters)))]
+
+plot(
+  validacion2dclusters,
+  g_poder,
+  layout = layout_kk,
+  vertex.size = 12,
+  vertex.label = NA
+)
+
+plot.new()
+
+legend(
+  "center",
+  legend = c(
+    "Top 10 clusters:",
+    paste0(
+      " - Cluster ",
+      ord,
+      " (n = ",
+      sizes(validacion2dclusters)[ord],
+      ")"
+    )
+  ),
+  col = c(
+    NA,
+    rainbow(length(sizes(validacion2dclusters)))[ord]
+  ),
+  pch = c(
+    NA,
+    rep(19, length(ord))
+  ),
+  pt.cex = 1.5,
+  bty = "n"
+)
+
+mtext(
+  paste(
+    "Clustering mediante",
+    validacion2dclusters$algorithm
+  ),
+  outer = TRUE,
+  side = 3,
+  line = 1.5,
+  cex = 1.1
+)
+
+```
+
 
 ## e. Ajustar los modelos considerados previamente incorporando la informacion nodal relevante cuando sea pertinente, presentar e interpretar sus resultados mediante tablas y gráficos, evaluar su bondad de ajuste con base en densidad, transitividad, asortatividad y distancia geodésica promedio, y comparar su capacidad predictiva mediante validacion cruzada de 5 particiones. Las secciones de bondad de ajuste y capacidad predictiva deben tener una extension máxima de 1000 palabras cada una.
