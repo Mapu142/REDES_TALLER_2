@@ -658,7 +658,7 @@ En cuanto a la detección de comunidades, el algoritmo Infomap obtuvo los mayore
 
 ## e. Ajuste, de manera independiente para cada red, un modelo de bloques estocásticos, un modelo de grafos aleatorios exponenciales y un modelo de socialidad con covariables. En el caso del modelo de grafos aleatorios exponenciales, incluya como términos del predictor lineal el número de aristas y las covariables con efectos homofílicos. Para el modelo de socialidad, incorpore también covariables con efectos homofílicos. Presente todos los resultados de forma estratégica, de modo que se facilite la comparacion entre gobiernos y se identifiquen diferencias relevantes en la estructura de las redes de poder. Finalmente, interprete los resultados de manera profunda, pero concisa, destacando sus posibles implicaciones políticas. {.tabset}
 
-```{r}
+```{r include=FALSE}
 # bloques estocasticos
 sbm_modelos <- lapply(
   redes_poder,
@@ -741,12 +741,14 @@ extraer_ergm <- function(modelo){
 
   s <- summary(modelo)
 
+  coefs <- s$coefficients
+
   data.frame(
-    termino = rownames(s$coefs),
-    estimacion = s$coefs[,1],
-    error_std = s$coefs[,2],
-    estadistico = s$coefs[,3],
-    p = s$coefs[,4],
+    termino = rownames(coefs),
+    estimacion = coefs[, "Estimate"],
+    error_std = coefs[, "Std. Error"],
+    estadistico = coefs[, "z value"],
+    p = coefs[, "Pr(>|z|)"],
     row.names = NULL
   )
 
