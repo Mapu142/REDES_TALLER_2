@@ -30,6 +30,9 @@ library(blockmodels) # para modelo de bloques estocásticos
 library(ergm) # para modelo de grafos aleatorios exponenciales
 library(amen) # para modelo de sociabilidad
 library(intergraph)
+#install.packages("renv")
+#renv::init()
+#renv::snapshot() # el computador se daño desde el taller 3 x_x
 ```
 
 # Redes de poder en Colombia
@@ -44,6 +47,7 @@ El objetivo es llevar a cabo un análisis exhaustivo de las redes de poder en Co
 ```{r poder}
 poder <- read_excel("poder.xlsx", 
     sheet = "GABINETE_LIMPIO")
+poder$EDAD <- as.numeric(poder$EDAD)
 entidades <- names(poder)[2:51]
 crear_red <- function(datos, gobierno) {
 
@@ -652,7 +656,7 @@ for (i in seq_along(validacion2dclusters)) {
 
 En cuanto a la detección de comunidades, el algoritmo Infomap obtuvo los mayores valores de modularidad en las redes de Petro y Duque, mientras que en las redes de Santos y Uribe el mejor desempeño correspondió al algoritmo basado en betweenness. Las diferencias en la modularidad sugieren que la organización interna de las redes varía entre gobiernos. En algunos casos las comunidades se identifican mejor mediante el flujo de información (Infomap), mientras que en otros resulta más efectiva la eliminación progresiva de aristas con alta intermediación (betweenness), reflejando distintas formas de organización estructural.
 
-## e. Ajuste, de manera independiente para cada red, un modelo de bloques estocásticos, un modelo de grafos aleatorios exponenciales y un modelo de socialidad con covariables. En el caso del modelo de grafos aleatorios exponenciales, incluya como términos del predictor lineal el número de aristas y las covariables con efectos homofílicos. Para el modelo de socialidad, incorpore también covariables con efectos homofílicos. Presente todos los resultados de forma estratégica, de modo que se facilite la comparacion entre gobiernos y se identifiquen diferencias relevantes en la estructura de las redes de poder. Finalmente, interprete los resultados de manera profunda, pero concisa, destacando sus posibles implicaciones políticas.{.tabset}
+## e. Ajuste, de manera independiente para cada red, un modelo de bloques estocásticos, un modelo de grafos aleatorios exponenciales y un modelo de socialidad con covariables. En el caso del modelo de grafos aleatorios exponenciales, incluya como términos del predictor lineal el número de aristas y las covariables con efectos homofílicos. Para el modelo de socialidad, incorpore también covariables con efectos homofílicos. Presente todos los resultados de forma estratégica, de modo que se facilite la comparacion entre gobiernos y se identifiquen diferencias relevantes en la estructura de las redes de poder. Finalmente, interprete los resultados de manera profunda, pero concisa, destacando sus posibles implicaciones políticas. {.tabset}
 
 ```{r}
 # bloques estocasticos
@@ -676,6 +680,43 @@ sbm_modelos <- lapply(
   }
 )
 
+extraer_sbm <- function(modelo){
+
+  k_opt <- which.max(modelo$ICL)
+
+  Z <- modelo$memberships[[k_opt]]$Z
+
+  grupos <- max.col(Z)
+
+  data.frame(
+
+    k_optimo = k_opt,
+
+    tamanos = paste(table(grupos), collapse = ", "),
+
+    ICL = modelo$ICL[k_opt],
+
+    PL = modelo$PL[k_opt]
+
+  )
+
+}
+
+
+tabla_sbm <- dplyr::bind_rows(
+  Map(
+    function(mod, nombre) {
+      cbind(
+        gobierno = nombre,
+        extraer_sbm(mod)
+      )
+    },
+    sbm_modelos,
+    names(redes_poder)
+  )
+)
+
+
 # ergm 
 ergm_modelos <- lapply(
   redes_poder,
@@ -691,11 +732,54 @@ ergm_modelos <- lapply(
         nodematch("carrera") +
         nodematch("universidad") +
         nodematch("genero") +
-        nodematch("nivel_estudios") +
-        absdiff("edad")
+        nodematch("nivel_estudios") 
     )
   }
 )
+
+extraer_ergm <- function(modelo){
+
+  s <- summary(modelo)
+
+  data.frame(
+    termino = rownames(s$coefs),
+    estimacion = s$coefs[,1],
+    error_std = s$coefs[,2],
+    estadistico = s$coefs[,3],
+    p = s$coefs[,4],
+    row.names = NULL
+  )
+
+}
+
+tabla_ergm <- dplyr::bind_rows(
+  Map(
+    function(mod, nombre){
+
+      salida <- extraer_ergm(mod)
+
+      salida$gobierno <- nombre
+
+      salida
+
+    },
+
+    ergm_modelos,
+
+    names(redes_poder)
+
+  )
+)
+
+tabla_ergm <- tabla_ergm  %>% 
+  dplyr::select(
+    gobierno,
+    termino,
+    estimacion,
+    error_std,
+    estadistico,
+    p
+  )
 
 # sociabilidad
 socialidad_modelos <- lapply(
@@ -760,21 +844,79 @@ socialidad_modelos <- lapply(
   }
 )
 
+extraer_ame <- function(modelo){
+
+  beta <- modelo$BETA
+
+  data.frame(
+    termino = colnames(beta),
+    media = colMeans(beta),
+    sd = apply(beta, 2, sd),
+    li95 = apply(beta, 2, quantile, 0.025),
+    ls95 = apply(beta, 2, quantile, 0.975),
+    row.names = NULL
+  )
+
+}
+
+tabla_ame <- dplyr::bind_rows(
+  Map(
+    function(mod, nombre){
+
+      salida <- extraer_ame(mod)
+
+      salida$gobierno <- nombre
+
+      salida
+
+    },
+
+    socialidad_modelos,
+
+    names(redes_poder)
+
+  )
+)
+
+tabla_ame <- tabla_ame  %>% 
+  dplyr::select(
+    gobierno,
+    termino,
+    media,
+    sd,
+    li95,
+    ls95
+  )
 
 
 ```
 
-### Petro {.tabset}
+### Modelos de bloques estocásticos
 
+```{r estocasticos-poder, tab.cap="Comparación de los modelos de bloques estocásticos para los distintos gobiernos"}
+tabla_sbm %>% 
+  kableExtra::kbl(caption = 'Comparación de los modelos de bloques estocásticos para los distintos gobiernos',
+                    digits = 3) %>% 
+  kableExtra::kable_minimal()
+```
 
+### Modelos de grafos aleatorios exponenciales
 
-### Duque {.tabset}
+```{r ERGM-poder, tab.cap="Comparación de los modelos de grafos aleatorios exponenciales para los distintos gobiernos"}
+tabla_ergm %>% 
+  kableExtra::kbl(caption = 'Comparación de los modelos de grafos aleatorios exponenciales para los distintos gobiernos',
+                    digits = 3) %>% 
+  kableExtra::kable_minimal()
+```
 
-### Santos {.tabset}
+### Modelos de Sociabilidad con covariables
 
-### Uribe {.tabset}
-
-
+```{r sociabilidad-poder, tab.cap="Comparación de los modelos de sociabilidad para los distintos gobiernos"}
+tabla_ame %>% 
+  kableExtra::kbl(caption = 'Comparación de los modelos de sociabilidad para los distintos gobiernos',
+                    digits = 3) %>% 
+  kableExtra::kable_minimal()
+```
 
 ## f. Evalúe la bondad de ajuste de los modelos ajustados en el numeral anterior utilizando como estadísticos de prueba la densidad, la transitividad, la asortatividad y la distancia geodésica promedio. Presente los resultados en tablas y gráficos, interpretando detalladamente los hallazgos, identificando qué modelos capturan mejor las propiedades observadas en la red y limitando el análisis a un máximo de 1000 palabras.
 
