@@ -33,6 +33,7 @@ library(intergraph)
 #install.packages("renv")
 #renv::init()
 #renv::snapshot() # el computador se daño desde el taller 3 x_x
+library(latentnet) # modelos latentes
 ```
 
 # Redes de poder en Colombia
@@ -920,7 +921,330 @@ tabla_ame %>%
   kableExtra::kable_minimal()
 ```
 
-## f. Evalúe la bondad de ajuste de los modelos ajustados en el numeral anterior utilizando como estadísticos de prueba la densidad, la transitividad, la asortatividad y la distancia geodésica promedio. Presente los resultados en tablas y gráficos, interpretando detalladamente los hallazgos, identificando qué modelos capturan mejor las propiedades observadas en la red y limitando el análisis a un máximo de 1000 palabras.
+## f. Evalúe la bondad de ajuste de los modelos ajustados en el numeral anterior utilizando como estadísticos de prueba la densidad, la transitividad, la asortatividad y la distancia geodésica promedio. Presente los resultados en tablas y gráficos, interpretando detalladamente los hallazgos, identificando qué modelos capturan mejor las propiedades observadas en la red y limitando el análisis a un máximo de 1000 palabras. {.tabset}
+
+```{r}
+estadisticas_red <- function(g){
+
+  c(
+    densidad = edge_density(g),
+    transitividad = transitivity(g, type = "global"),
+    asortatividad = assortativity_degree(g, directed = FALSE),
+    distancia = mean_distance(g, directed = FALSE)
+  )
+
+}
+
+estadisticas_observadas <- lapply(
+  redes_poder,
+  estadisticas_red
+)
+
+estadisticas_simuladas <- function(simulaciones){
+
+  dplyr::bind_rows(
+
+    lapply(
+
+      simulaciones,
+
+      function(red){
+
+        # Solo convertir si es un objeto network
+        if(inherits(red, "network")){
+          red <- intergraph::asIgraph(red)
+        }
+
+        as.data.frame(
+          as.list(
+            estadisticas_red(red)
+          )
+        )
+
+      }
+
+    )
+
+  )
+
+}
+graficar_gof <- function(simulados,
+                         observado,
+                         titulo = ""){
+
+  par(mfrow = c(2,2))
+
+  estadisticos <- c(
+    "densidad",
+    "transitividad",
+    "asortatividad",
+    "distancia"
+  )
+
+  for(est in estadisticos){
+
+    boxplot(
+      simulados[[est]],
+      main = est,
+      ylab = est
+    )
+
+    abline(
+      h = observado[est],
+      col = "red",
+      lwd = 2
+    )
+
+  }
+
+  mtext(
+    titulo,
+    outer = TRUE,
+    line = -2,
+    cex = 1.2
+  )
+
+}
+
+
+#Bloques estocásticos
+simular_sbm <- function(modelo, nsim = 500){
+
+  k_opt <- which.max(modelo$ICL)
+
+  P <- modelo$prediction(k_opt)
+
+  n <- nrow(P)
+
+  sims <- vector("list", nsim)
+
+  for(i in seq_len(nsim)){
+
+    Y <- matrix(0, n, n)
+
+    Y[upper.tri(Y)] <-
+      rbinom(
+        sum(upper.tri(Y)),
+        1,
+        P[upper.tri(P)]
+      )
+
+    Y <- Y + t(Y)
+
+    sims[[i]] <- igraph::graph_from_adjacency_matrix(
+      Y,
+      mode = "undirected"
+    )
+
+  }
+
+  sims
+
+}
+
+sim_sbm <- lapply(
+  sbm_modelos,
+  simular_sbm,
+  nsim = 500
+)
+
+estadisticas_sim_sbm <-
+  lapply(
+    sim_sbm,
+    estadisticas_simuladas
+  )
+
+
+
+# ERGM
+sim_ergm <- lapply(
+  ergm_modelos,
+  simulate,
+  nsim = 500
+)
+estadisticas_sim_ergm <-
+  lapply(
+    sim_ergm,
+    estadisticas_simuladas
+  )
+
+# ame
+
+simular_ame <- function(modelo, nsim = 500){
+
+  P <- modelo$YPM
+
+  n <- nrow(P)
+
+  sims <- vector("list", nsim)
+
+  for(i in seq_len(nsim)){
+
+    Y <- matrix(0, n, n)
+
+    Y[upper.tri(Y)] <-
+      rbinom(
+        sum(upper.tri(Y)),
+        1,
+        P[upper.tri(P)]
+      )
+
+    Y <- Y + t(Y)
+
+    sims[[i]] <-
+      igraph::graph_from_adjacency_matrix(
+        Y,
+        mode = "undirected",
+        diag = FALSE
+      )
+
+  }
+
+  sims
+
+}
+
+sim_ame <- lapply(
+  socialidad_modelos,
+  simular_ame,
+  nsim = 500
+)
+
+estadisticas_sim_ame <-
+  lapply(
+    sim_ame,
+    estadisticas_simuladas
+  )
+
+```
+
+### Modelos de bloques estocásticos {.tabset}
+
+#### Petro 
+
+```{r bs-petro, fig.cap="Comparación estadísticos en el modelo de bloques estocásticos para el gobierno de Petro", fig.height=14, fig.width=9, fig.align='center'}
+graficar_gof(
+    simulados = estadisticas_sim_sbm[[1]],
+    observado = estadisticas_observadas[[1]],
+    titulo = names(redes_poder)[1]
+  )
+```
+
+#### Duque 
+
+```{r box-duque, fig.cap="Comparación estadísticos en el modelo de bloques estocásticos para el gobierno de duque", fig.height=14, fig.width=9, fig.align='center'}
+graficar_gof(
+    simulados = estadisticas_sim_sbm[[2]],
+    observado = estadisticas_observadas[[2]],
+    titulo = names(redes_poder)[2]
+  )
+```
+
+#### Santos 
+
+```{r box-santos, fig.cap="Comparación estadísticos en el modelo de bloques estocásticos para el gobierno de Santos", fig.height=14, fig.width=9, fig.align='center'}
+graficar_gof(
+    simulados = estadisticas_sim_sbm[[3]],
+    observado = estadisticas_observadas[[3]],
+    titulo = names(redes_poder)[3]
+  )
+```
+
+#### Uribe 
+
+```{r box-uribe, fig.cap="Comparación estadísticos en el modelo de bloques estocásticos para el gobierno de Uribe", fig.height=14, fig.width=9, fig.align='center'}
+graficar_gof(
+    simulados = estadisticas_sim_sbm[[4]],
+    observado = estadisticas_observadas[[4]],
+    titulo = names(redes_poder)[4]
+  )
+```
+
+
+### Modelos de grafos aleatorios exponenciales {.tabset}
+
+#### Petro 
+
+```{r ergm-petro, fig.cap="Comparación estadísticos en el modelo de grafos aleatorios exponenciales para el gobierno de Petro", fig.height=14, fig.width=9, fig.align='center'}
+graficar_gof(
+    simulados = estadisticas_sim_ergm[[1]],
+    observado = estadisticas_observadas[[1]],
+    titulo = names(redes_poder)[1]
+  )
+```
+
+#### Duque 
+
+```{r ergm-duque, fig.cap="Comparación estadísticos en el modelo de grafos aleatorios exponenciales para el gobierno de Duque", fig.height=14, fig.width=9, fig.align='center'}
+graficar_gof(
+    simulados = estadisticas_sim_ergm[[2]],
+    observado = estadisticas_observadas[[2]],
+    titulo = names(redes_poder)[2]
+  )
+```
+
+#### Santos 
+
+```{r ergm-santos, fig.cap="Comparación estadísticos en el modelo de grafos aleatorios exponenciales para el gobierno de Santos", fig.height=14, fig.width=9, fig.align='center'}
+graficar_gof(
+    simulados = estadisticas_sim_ergm[[3]],
+    observado = estadisticas_observadas[[3]],
+    titulo = names(redes_poder)[3]
+  )
+```
+
+#### Uribe 
+
+```{r ergm-uribe, fig.cap="Comparación estadísticos en el modelo de grafos aleatorios exponenciales para el gobierno de Uribe", fig.height=14, fig.width=9, fig.align='center'}
+graficar_gof(
+    simulados = estadisticas_sim_ergm[[4]],
+    observado = estadisticas_observadas[[4]],
+    titulo = names(redes_poder)[4]
+  )
+```
+
+### Modelos de sociabilidad con covariables {.tabset}
+
+#### Petro 
+
+```{r box-petro, fig.cap="Comparación estadísticos en el modelo de sociabilidad con covariables para el gobierno de Petro", fig.height=14, fig.width=9, fig.align='center'}
+graficar_gof(
+    simulados = estadisticas_sim_ame[[1]],
+    observado = estadisticas_observadas[[1]],
+    titulo = names(redes_poder)[1]
+  )
+```
+
+#### Duque 
+
+```{r box-duque, fig.cap="Comparación estadísticos en el modelo de sociabilidad con covariables para el gobierno de Duque", fig.height=14, fig.width=9, fig.align='center'}
+graficar_gof(
+    simulados = estadisticas_sim_ame[[2]],
+    observado = estadisticas_observadas[[2]],
+    titulo = names(redes_poder)[2]
+  )
+```
+
+#### Santos 
+
+```{r box-santos, fig.cap="Comparación estadísticos en el modelo de sociabilidad con covariables para el gobierno de Santos", fig.height=14, fig.width=9, fig.align='center'}
+graficar_gof(
+    simulados = estadisticas_sim_ame[[3]],
+    observado = estadisticas_observadas[[3]],
+    titulo = names(redes_poder)[3]
+  )
+```
+
+#### Uribe 
+
+```{r box-uribe, fig.cap="Comparación estadísticos en el modelo de sociabilidad con covariables para el gobierno de Uribe", fig.height=14, fig.width=9, fig.align='center'}
+graficar_gof(
+    simulados = estadisticas_sim_ame[[4]],
+    observado = estadisticas_observadas[[4]],
+    titulo = names(redes_poder)[4]
+  )
+```
+
 
 ## g. Repita los numerales b., c. y d. para la red completa, sin filtrar por gobierno. {.tabset}
 
@@ -1868,10 +2192,55 @@ ggplot(actores, aes(x = actor, y = grado)) +
 
 + En el diagrama de cajas se observa que la mayoría de los actores tienden a sobreestimar las amistades. Es decir, cada actor, desde su perspectiva individual, reporta más vínculos de los que realmente existen según el consenso social promedio.
 
-+ Dos actores se apartan de este patron general: el actor 9 subestimo las amistades, reporto menos vínculos de los que el consenso promedio reconoce; el actor 8 acerto en su percepcion, su reporte individual coincide con las relaciones que efectivamente superan el umbral de consenso.
++ Dos actores se apartan de este patron general: el **actor 9,8** y **2** subestimaron las amistades, reportarón menos vínculos de los que el consenso promedio reconoce.
+
++ Por otro lado los actores **16** y **18** acertaron en su percepción, sus reoprtes individuales coincidieron con las relaciones que efectivamente superan el umbral del consenso.
 
 
 ## d. Ajuste un modelo de grafos aleatorio exponencial a la red de consenso, utilizando como términos en el predictor lineal el número de aristas y las covariables con efectos homofílicos. Realice una interpretacion detallada de los resultados obtenidos, identificando el impacto de las covariables en la estructura de la red y discutiendo la adecuacion del modelo en este contexto. Limite la interpretacion a un máximo de 1000 palabras.
+
+```{r}
+krackhardt21c <- read_table("krackhardt21c.txt")
+V(grafos21[[22]])$edad <- krackhardt21c$age
+V(grafos21[[22]])$tenencia <- krackhardt21c$tenure
+V(grafos21[[22]])$nivel <- krackhardt21c$level
+V(grafos21[[22]])$departamento <- krackhardt21c$dept
+red_consenso <- asNetwork(grafos21[[22]])
+ergmconsenso <- ergm(red_consenso ~
+        edges +
+        nodematch("nivel") +
+        nodematch("departamento") 
+    )
+tabla_ergm <- summary(ergmconsenso)$coefficients  %>% 
+  as.data.frame() %>% 
+  tibble::rownames_to_column("Parámetro") %>% 
+  rename(
+    Estimación = Estimate,
+    `Error estándar` = `Std. Error`,
+    `Valor z` = `z value`,
+    `Valor p` = `Pr(>|z|)`
+  ) %>% 
+  mutate(
+    `Valor p` = ifelse(`Valor p` < 0.001,
+                       "<0.001",
+                       sprintf("%.3f", `Valor p`)),
+    across(c(Estimación, `Error estándar`, `Valor z`),
+           ~ round(.x, 3))
+  )
+```
+
+```{r tabla-ergm, tab.cap="Resultados del modelo ERGM para la red de consenso"}
+tabla_ergm %>% 
+  kbl(
+    caption = "Resultados del modelo ERGM para la red de consenso",
+    align = c("l", "c", "c", "c", "c"),
+    booktabs = TRUE
+  ) %>% 
+  kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover")
+  )
+```
 
 ## e. Considere los siguientes modelos (sin covariables) para ajustarlos a la red de consenso:
 
@@ -1885,6 +2254,287 @@ ggplot(actores, aes(x = actor, y = grado)) +
 Ajuste cada uno de estos modelos y utilice tablas y visualizaciones según sea necesario para mostrar los resultados. Interprete detalladamente los hallazgos de cada modelo, sin límite de palabras para esta seccion, destacando las fortalezas y limitaciones de cada enfoque.
 
 Nota: El modelo de sociabilidad se encuentra disponible en https://rpubs.com/jstats1702/1430765 (este modelo lo publicaron en 2026 Sosa y Martínez en https://www.tandfonline.com/doi/full/10.1080/10618600.2026.2627454).
+
+```{r}
+m1 <- ergm(
+  red_consenso ~ edges
+)
+
+red_nd <- as_undirected(
+  grafos21[[22]],
+  mode = "collapse"
+)
+
+grados <- degree(red_nd)
+
+m2 <- sample_degseq(
+  out.deg = grados,
+  method = "configuration"
+)
+
+red_nd <- intergraph::asNetwork(red_nd)
+
+m3_mple <- ergm(
+  red_nd ~
+    edges +
+    triangle,
+  estimate = "MPLE"
+)
+
+A <- as.matrix.network.adjacency(red_consenso)
+
+m4 <- BM_bernoulli(
+  "SBM",
+  A
+)
+m4$estimate()
+
+m5 <- ergmm(
+  red_consenso ~ euclidean(d = 2)
+)
+
+sample_z <- function(y, mu, delta, z) {
+
+  n <- nrow(y)
+
+  for (i in 1:(n - 1)) {
+    for (j in (i + 1):n) {
+
+      media <- mu + delta[i] + delta[j]
+
+      if (y[i, j] == 1) {
+
+        z[i, j] <- truncnorm::rtruncnorm(
+          1,
+          a = 0,
+          b = Inf,
+          mean = media,
+          sd = 1
+        )
+
+      } else {
+
+        z[i, j] <- truncnorm::rtruncnorm(
+          1,
+          a = -Inf,
+          b = 0,
+          mean = media,
+          sd = 1
+        )
+
+      }
+
+      z[j, i] <- z[i, j]
+
+    }
+  }
+
+  z
+}
+sample_mu <- function(z, delta, sigma2) {
+
+  v2_mu <- 1 / (1 / sigma2 + sum(upper.tri(z)))
+
+  m_mu <- v2_mu *
+    sum(
+      z[upper.tri(z)] -
+        delta[row(z)[upper.tri(z)]] -
+        delta[col(z)[upper.tri(z)]]
+    )
+
+  rnorm(
+    1,
+    mean = m_mu,
+    sd = sqrt(v2_mu)
+  )
+
+}
+sample_delta <- function(z, mu, tau2, delta) {
+
+  n <- nrow(z)
+
+  for (i in 1:n) {
+
+    vecinos <- setdiff(1:n, i)
+
+    v2_delta <- 1 / (1 / tau2 + length(vecinos))
+
+    m_delta <- v2_delta *
+      sum(
+        z[i, vecinos] -
+          mu -
+          delta[vecinos]
+      )
+
+    delta[i] <- rnorm(
+      1,
+      mean = m_delta,
+      sd = sqrt(v2_delta)
+    )
+
+  }
+
+  delta
+
+}
+sample_sigma2 <- function(mu) {
+
+  a_sigma_post <- a_sigma + 0.5
+
+  b_sigma_post <- b_sigma + 0.5 * mu^2
+
+  1 / rgamma(
+    1,
+    shape = a_sigma_post,
+    rate = b_sigma_post
+  )
+
+}
+sample_tau2 <- function(delta) {
+
+  n <- length(delta)
+
+  a_tau_post <- a_tau + n / 2
+
+  b_tau_post <- b_tau +
+    0.5 * sum(delta^2)
+
+  1 / rgamma(
+    1,
+    shape = a_tau_post,
+    rate = b_tau_post
+  )
+
+}
+gibbs_sampler <- function(
+    y,
+    n_iter = 30000,
+    n_burn = 10000,
+    n_thin = 20
+) {
+
+  n <- nrow(y)
+
+  ## Valores iniciales
+
+  mu <- 0
+
+  delta <- rnorm(n)
+
+  sigma2 <- 1
+
+  tau2 <- 1
+
+  z <- matrix(0, n, n)
+
+  ## Número de muestras
+
+  n_samples <- (n_iter - n_burn) / n_thin
+
+  ## Objetos para almacenar
+
+  samples <- list(
+
+    mu = numeric(n_samples),
+
+    delta = matrix(
+      0,
+      nrow = n_samples,
+      ncol = n
+    ),
+
+    sigma2 = numeric(n_samples),
+
+    tau2 = numeric(n_samples)
+
+  )
+
+  cat("Iniciando Gibbs...\n")
+
+  for (iter in 1:n_iter) {
+
+    z <- sample_z(
+      y,
+      mu,
+      delta,
+      z
+    )
+
+    mu <- sample_mu(
+      z,
+      delta,
+      sigma2
+    )
+
+    delta <- sample_delta(
+      z,
+      mu,
+      tau2,
+      delta
+    )
+
+    sigma2 <- sample_sigma2(mu)
+
+    tau2 <- sample_tau2(delta)
+
+    if (
+      iter > n_burn &&
+      (iter - n_burn) %% n_thin == 0
+    ) {
+
+      pos <- (iter - n_burn) / n_thin
+
+      samples$mu[pos] <- mu
+
+      samples$delta[pos, ] <- delta
+
+      samples$sigma2[pos] <- sigma2
+
+      samples$tau2[pos] <- tau2
+
+    }
+
+    if (iter %% (n_iter / 10) == 0) {
+
+      cat(
+        sprintf(
+          "Progreso: %.0f%%\n",
+          100 * iter / n_iter
+        )
+      )
+
+    }
+
+  }
+
+  cat("Finalizado.\n")
+
+  samples
+
+}
+A <- as.matrix(
+  as_adjacency_matrix(
+    grafos21[[22]],
+    sparse = FALSE
+  )
+)
+
+set.seed(1916)
+
+m6 <- gibbs_sampler(
+  y = A,
+  n_iter = 30000,
+  n_burn = 10000,
+  n_thin = 20
+)
+mu_hat <- mean(m6$mu)
+
+sigma2_hat <- mean(m6$sigma2)
+
+tau2_hat <- mean(m6$tau2)
+
+delta_hat <- colMeans(m6$delta)
+```
 
 ## f. Evalúe la bondad de ajuste de los modelos ajustados en el numeral anterior utilizando como estadísticos de prueba la densidad, la transitividad, la asortatividad y la distancia geodésica promedio. Presente los resultados en tablas y gráficos, interpretando detalladamente los hallazgos, identificando qué modelos capturan mejor las propiedades observadas en la red de consenso y limitando el análisis a un máximo de 1000 palabras.
 
