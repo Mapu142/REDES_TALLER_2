@@ -30,16 +30,15 @@ library(blockmodels) # para modelo de bloques estocásticos
 library(ergm) # para modelo de grafos aleatorios exponenciales
 library(amen) # para modelo de sociabilidad
 library(intergraph)
-#install.packages("renv")
-#renv::init()
-#renv::snapshot() # el computador se daño desde el taller 3 x_x
-#install.packages("latentnet")
-#install.packages("truncnorm")
 library(latentnet) # modelos latentes
 library(truncnorm)
 library(tibble)
 library(caret)
 library(pROC)
+#install.packages("renv")
+#renv::init()
+#renv::snapshot() # el computador se daño desde el taller 3 x_x
+
 ```
 
 # Redes de poder en Colombia
@@ -1992,11 +1991,14 @@ jaccard_tab <- purrr::map_dfr(
 )
 ```
 
-```{r jaccard, tab.cap="Coeficiente de Jaccard entre los actores y la red de consenso", echo=FALSE, message=FALSE, warning=FALSE}
+```{r jaccard, tab.cap="Coeficiente de Jaccard entre los actores y la red de consenso"}
 jaccard_tab %>% 
   arrange(desc(jaccard)) %>% 
-  kableExtra::kbl() %>%
-  kableExtra::kable_paper("striped", full_width = F) %>%
+  kableExtra::kbl(caption = "Coeficiente de Jaccard entre los actores y la red de consenso") %>%
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    position = "center"
+  ) %>%
   kableExtra::column_spec(8, bold = T) %>%
   kableExtra::row_spec(0, bold = T) %>%
   kableExtra::row_spec(1:3, bold = T, color = "white", background = "#D7261E")
@@ -2043,11 +2045,14 @@ metricas_tab <- purrr::map_dfr(
 )
 ```
 
-```{r sensibilidad, echo=FALSE, message=FALSE, warning=FALSE, tab.cap="Métrica de sensibilidad de la percepción de los actores y la red de consenso"}
+```{r sensibilidad, tab.cap="Métrica de sensibilidad de la percepción de los actores y la red de consenso"}
 metricas_tab %>% 
   arrange(desc(sensibilidad)) %>% 
-  kableExtra::kbl() %>%
-  kableExtra::kable_paper("striped", full_width = F) %>%
+  kableExtra::kbl(caption = "Métrica de sensibilidad de la percepción de los actores y la red de consenso") %>%
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    position = "center"
+  ) %>%
   kableExtra::column_spec(c(6,7), bold = T) %>%
   kableExtra::row_spec(c(19,20), bold = T, color = "white", background = "#D7261E")
 ```
@@ -2106,7 +2111,7 @@ tabla <- data.frame(Red=nombres,
 ```{r tabla-actores, echo=FALSE, message=FALSE, warning=FALSE, tab.cap="Comparación entre los actores y la red de consenso utilizando diferentes estadísticos"}
 tabla %>% 
   kableExtra::kbl() %>%
-  kableExtra::kable_paper("striped", full_width = F) %>%
+  kableExtra::kable_styling(     full_width = FALSE,     position = "center"   ) %>%
   kableExtra::column_spec(1:6, bold = T) %>%
   kableExtra::row_spec(c(3,7,8,9,15,19), bold = T, color = "white", background = "#D7261E")
 ```
@@ -2597,7 +2602,7 @@ tabla_m2 <- data.frame(Medida=c("Nodos",
                         Simulada=c(vcount(m2),
                                     ecount(m2),
                                     mean(degree(m2)),
-                                    density(m2)))
+                                    edge_density(m2)))
 ```
 
 ```{r tabla, tab.cap="Resultados del modelo de grafos aleatorios generalizado para la red de consenso"}
@@ -2885,7 +2890,7 @@ sim_m2 <- replicate(
   100,
   sample_degseq(
     degree(red_nda),
-    method = "simple"
+    method = "configuration"
   ),
   simplify = FALSE
 )
@@ -3037,9 +3042,9 @@ geom_hline(
 )
 ```
 
-## g. Compruebe la capacidad predictiva de los modelos ajustados en el numeral anterior mediante validacion cruzada con cinco (5 folds). Evalúe el rendimiento predictivo de cada modelo, utilizando tablas y gráficos para resumir los resultados. Interprete los hallazgos, destacando cuál modelo proporciona las mejores predicciones y por qué, limitando la interpretacion a un máximo de 1000 palabras.
+## g. Compruebe la capacidad predictiva de los modelos ajustados en el numeral anterior mediante validacion cruzada con cinco (5 folds). Evalúe el rendimiento predictivo de cada modelo, utilizando tablas y gráficos para resumir los resultados. Interprete los hallazgos, destacando cuál modelo proporciona las mejores predicciones y por qué, limitando la interpretacion a un máximo de 1000 palabras.{.tabset}
 
-```{r}
+```{r message=FALSE, warning=FALSE, include=FALSE}
 crear_folds <- function(
     red,
     k = 5,
@@ -3090,9 +3095,15 @@ crear_red_train <- function(
 
   }
 
-  network(
-    A_train,
-    matrix.type = "adjacency"
+  list(
+
+    A = A_train,
+
+    red = network(
+      A_train,
+      matrix.type = "adjacency"
+    )
+
   )
 
 }
@@ -3187,11 +3198,11 @@ validacion_cruzada <- function(
       "\n"
     )
 
-    red_train <- crear_red_train(
-      datos$A,
-      datos$dyads,
-      datos$folds[[fold]]
-    )
+    train <- crear_red_train(
+  datos$A,
+  datos$dyads,
+  datos$folds[[fold]]
+)
 
     test <- obtener_test(
       datos$A,
@@ -3200,9 +3211,9 @@ validacion_cruzada <- function(
     )
 
     prob <- predecir(
-      red_train,
-      test
-    )
+  train,
+  test
+)
 
     resultados[[fold]] <-
 
@@ -3227,7 +3238,7 @@ predecir_m1 <- function(
 ){
 
   fit <- ergm(
-    red_train ~ edges
+    red_train$red ~ edges
   )
 
   theta <- coef(fit)[1]
@@ -3247,7 +3258,15 @@ predecir_m2 <- function(
     nsim = 500
 ){
 
-  g <- intergraph::asIgraph(red_train)
+  A <- red_train$A
+
+  A[is.na(A)] <- 0
+
+  g <- graph_from_adjacency_matrix(
+    A,
+    mode = "undirected",
+    diag = FALSE
+  )
 
   grados <- degree(g)
 
@@ -3272,18 +3291,52 @@ predecir_m2 <- function(
 
   for(sim in sims){
 
-    A <- as.matrix(
+    A_sim <- as.matrix(
       as_adjacency_matrix(
         sim,
         sparse = FALSE
       )
     )
 
-    P <- P + A
+    P <- P + A_sim
 
   }
 
   P <- P / nsim
+
+  purrr::map2_dbl(
+    test$i,
+    test$j,
+    ~ P[.x, .y]
+  )
+
+}
+
+delta_triangle <- function(A, i, j){
+
+  vecinos_i <- which(A[i, ] == 1)
+  vecinos_j <- which(A[j, ] == 1)
+
+  length(intersect(vecinos_i, vecinos_j))
+
+}
+predecir_m3 <- function(
+    red_train,
+    test
+){
+
+  fit <- ergm(
+    red_train$red ~
+      edges +
+      triangle,
+    estimate = "MPLE"
+  )
+
+  theta <- coef(fit)
+
+  A <- red_train$A
+
+  A[is.na(A)] <- 0
 
   purrr::map2_dbl(
 
@@ -3291,15 +3344,137 @@ predecir_m2 <- function(
 
     test$j,
 
-    ~P[.x,.y]
+    function(i, j){
+
+      dtri <- delta_triangle(
+        A,
+        i,
+        j
+      )
+
+      eta <-
+        theta["edges"] +
+        theta["triangle"] * dtri
+
+      plogis(eta)
+
+    }
 
   )
 
 }
 
+predecir_m4 <- function(
+    red_train,
+    test
+){
 
+  A <- red_train$A
+  A[is.na(A)] <- 0
 
+  fit <- BM_bernoulli(
+    "SBM",
+    A
+  )
 
+  fit$estimate()
+
+  best <- which.max(fit$ICL)
+
+  Z <- fit$memberships[[best]]$Z
+
+  bloques <- apply(
+    Z,
+    1,
+    which.max
+  )
+
+  Pi <- fit$model_parameters[[best]]$pi
+
+  purrr::map2_dbl(
+    test$i,
+    test$j,
+    ~ Pi[bloques[.x], bloques[.y]]
+  )
+
+}
+
+predecir_m5 <- function(
+    red_train,
+    test
+){
+
+  fit <- ergmm(
+    red_train$red ~
+      euclidean(d = 2)
+  )
+
+  beta <- fit$mkl$beta
+
+  Z <- fit$mkl$Z
+
+  purrr::map2_dbl(
+
+    test$i,
+
+    test$j,
+
+    function(i, j){
+
+      dij <- sqrt(
+        sum(
+          (Z[i, ] - Z[j, ])^2
+        )
+      )
+
+      plogis(
+        beta - dij
+      )
+
+    }
+
+  )
+
+}
+predecir_m6 <- function(
+    red_train,
+    test
+){
+
+  A <- red_train$A
+
+  A[is.na(A)] <- 0
+
+  fit <- gibbs_sampler(
+    y = A,
+    n_iter = 5000,
+    n_burn = 2000,
+    n_thin = 10
+  )
+
+  mu <- mean(fit$mu)
+
+  delta <- colMeans(fit$delta)
+
+  purrr::map2_dbl(
+
+    test$i,
+
+    test$j,
+
+    function(i, j){
+
+      pnorm(
+        mu +
+          delta[i] +
+          delta[j]
+      )
+
+    }
+
+  )
+
+}
 
 
 
@@ -3309,7 +3484,7 @@ cv_m1 <- validacion_cruzada(
 )
 
 cv_m2 <- validacion_cruzada(
-  red_nda,
+  red_nd,
   predecir_m2
 )
 
@@ -3333,6 +3508,81 @@ cv_m6 <- validacion_cruzada(
   predecir_m6
 )
 
+```
+
+### Tabla de resumen
+
+```{r}
+cv_total <- bind_rows(
+  cv_m1 |> mutate(Modelo = "M1: Bernoulli"),
+  cv_m2 |> mutate(Modelo = "M2: Grados"),
+  cv_m3 |> mutate(Modelo = "M3: ERGM"),
+  cv_m4 |> mutate(Modelo = "M4: SBM"),
+  cv_m5 |> mutate(Modelo = "M5: Latente"),
+  cv_m6 |> mutate(Modelo = "M6: Sociabilidad")
+)
+
+tabla_cv <-
+  cv_total |>
+  group_by(Modelo) |>
+  summarise(
+    AUC_media = mean(AUC),
+    AUC_sd = sd(AUC),
+    Accuracy_media = mean(Accuracy),
+    Accuracy_sd = sd(Accuracy),
+    .groups = "drop"
+  ) |>
+  mutate(
+    across(
+      -Modelo,
+      ~round(.x, 3)
+    )
+  )
+
+```
+
+```{r tabla-cv}
+tabla_cv %>% 
+  kableExtra::kbl(caption = "Resultados de la validación cruzada de cinco folds",
+    booktabs = TRUE,
+    align = c("l","c","c","c","c"),
+    col.names = c(
+      "Modelo",
+      "AUC media",
+      "DE",
+      "Accuracy media",
+      "DE"
+    )) %>%
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    position = "center"
+  ) %>%
+  kableExtra::row_spec(0, bold = T)
+```
+
+### Boxplot del AUC
+
+```{r boxplot-auc, fig.cap= "Boxplot del área bajo la curva (AUC por sus siglas en inglés)"}
+ggplot(
+  cv_total,
+  aes(
+    Modelo,
+    AUC,
+    fill = Modelo
+  )
+) +
+  geom_boxplot(
+    alpha = .8
+  ) +
+  labs(
+    x = NULL,
+    y = "AUC",
+    title = "Capacidad predictiva según el AUC"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "none"
+  )
 ```
 
 # Mafia
