@@ -907,6 +907,11 @@ tabla_sbm %>%
   kableExtra::kable_minimal()
 ```
 
++ 
+
++ Los valores de ICL y PL observados en \@ref(tab:estocasticos-poder) corresponden a criterios utilizados para seleccionar el modelo de bloques. Aunque no son comparables directamente entre gobiernos debido a que cada red tiene diferente tamaño y estructura, sí permiten identificar el modelo óptimo dentro de cada caso de estudio.
+
+
 ### Modelos de grafos aleatorios exponenciales
 
 ```{r ERGM-poder, tab.cap="Comparación de los modelos de grafos aleatorios exponenciales para los distintos gobiernos"}
@@ -924,6 +929,7 @@ tabla_ame %>%
                     digits = 3) %>% 
   kableExtra::kable_minimal()
 ```
+
 
 ## f. Evalúe la bondad de ajuste de los modelos ajustados en el numeral anterior utilizando como estadísticos de prueba la densidad, la transitividad, la asortatividad y la distancia geodésica promedio. Presente los resultados en tablas y gráficos, interpretando detalladamente los hallazgos, identificando qué modelos capturan mejor las propiedades observadas en la red y limitando el análisis a un máximo de 1000 palabras. {.tabset}
 
