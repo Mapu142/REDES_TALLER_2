@@ -37,7 +37,7 @@ library(caret)
 library(pROC)
 #install.packages("renv")
 #renv::init()
-#renv::snapshot() # el computador se daño desde el taller 3 x_x
+renv::snapshot() # el computador se daño desde el taller 3 x_x
 
 ```
 
@@ -697,7 +697,7 @@ extraer_sbm <- function(modelo){
 
     k_optimo = k_opt,
 
-    tamanos = paste(table(grupos), collapse = ", "),
+    "tamaños" = paste(table(grupos), collapse = ", "),
 
     ICL = modelo$ICL[k_opt],
 
@@ -715,6 +715,32 @@ tabla_sbm <- dplyr::bind_rows(
         gobierno = nombre,
         extraer_sbm(mod)
       )
+    },
+    sbm_modelos,
+    names(redes_poder)
+  )
+)
+
+extraer_pi <- function(modelo){
+
+  k_opt <- which.max(modelo$ICL)
+
+  pi <- modelo$model_parameters[[k_opt]]$pi
+
+  as.data.frame(as.table(pi))
+
+}
+
+tabla_pi <- dplyr::bind_rows(
+  Map(
+    function(mod, nombre){
+
+      salida <- extraer_pi(mod)
+
+      salida$gobierno <- nombre
+
+      salida
+
     },
     sbm_modelos,
     names(redes_poder)
@@ -855,8 +881,19 @@ extraer_ame <- function(modelo){
 
   beta <- modelo$BETA
 
+  nombres <- c(
+    "Intercepto",
+    "Homofilia: Partido",
+    "Homofilia: Género",
+    "Homofilia: Carrera",
+    "Homofilia: Universidad",
+    "Homofilia: Nivel de estudios",
+    "Homofilia: Predecesores",
+    "Edad (|Δ| ≤ 5 años)"
+  )
+
   data.frame(
-    termino = colnames(beta),
+    termino = nombres,
     media = colMeans(beta),
     sd = apply(beta, 2, sd),
     li95 = apply(beta, 2, quantile, 0.025),
@@ -898,14 +935,80 @@ tabla_ame <- tabla_ame  %>%
 
 ```
 
-### Modelos de bloques estocásticos
+### Modelos de bloques estocásticos {.tabset}
+
+#### Resumen 
 
 ```{r estocasticos-poder, tab.cap="Comparación de los modelos de bloques estocásticos para los distintos gobiernos"}
 tabla_sbm %>% 
+  dplyr::select(-"PL") %>% 
   kableExtra::kbl(caption = 'Comparación de los modelos de bloques estocásticos para los distintos gobiernos',
                     digits = 3) %>% 
   kableExtra::kable_minimal()
 ```
+
++ Se observa que, de los cuatro gobiernos analizados, el de Santos es el que presenta el mayor número de comunidades, con un total de seis bloques, mientras que el gobierno de Uribe presenta la menor cantidad, con tres bloques. Esto sugiere que la red del gobierno de Santos posee una estructura más subdividida que la de los demás gobiernos. Asimismo, en los cuatro casos se evidencia una distribución heterogénea de los tamaños de las comunidades, ya que los bloques contienen diferentes cantidades de nodos. Un aspecto llamativo es que en todos los gobiernos existe una comunidad considerablemente más grande que las demás; por ejemplo, en los gobiernos de Petro y Uribe el bloque más grande está conformado por 41 y 31 nodos, respectivamente, mientras que las comunidades restantes oscilan entre 10 y 16 nodos en el caso de Petro y entre 12 y 13 nodos en el caso de Uribe.
+
++ Los valores de ICL y PL observados en \@ref(tab:estocasticos-poder) corresponden a criterios utilizados para seleccionar el modelo de bloques. Aunque no son comparables directamente entre gobiernos debido a que cada red tiene diferente tamaño y estructura, sí permiten identificar el modelo óptimo dentro de cada caso de estudio.
+
+#### Petro
+
+```{r tabla-pi-petro, fig.cap="Probabilidades de interacción para el gobierno de Petro"}
+tabla_pi %>% 
+  dplyr::filter(gobierno=="Petro") %>% 
+  dplyr::select(-gobierno) %>% 
+  kableExtra::kbl(caption = 'Probabilidades de interacción para el gobierno de Petro',
+                    digits = 3) %>% 
+  kableExtra::row_spec(c(3,7,11,15), bold = T, color = "white", background = "#B0779E") %>% 
+  kableExtra::row_spec(16, bold = T, color = "white", background = "#E46923") %>% 
+  kableExtra::kable_minimal()
+```
+
+Se observa que las comunidades presentan una mayor probabilidad de interacción dentro de sí mismas que con las demás comunidades. En particular, el bloque D destaca por presentar una probabilidad de conexión interna muy alta ($P_{DD}=0.981$), lo que indica una comunidad altamente cohesiva. En contraste, el bloque C exhibe una baja probabilidad de conexión tanto entre sus propios miembros ($P_{CC}=0.053$) como con los demás bloques, lo que sugiere que constituye una comunidad poco conectada con el resto de la red.
+
+#### Duque
+
+```{r tabla-pi-duque, fig.cap="Probabilidades de interacción para el gobierno de Duque"}
+tabla_pi %>% 
+  dplyr::filter(gobierno=="Duque") %>% 
+  dplyr::select(-gobierno) %>% 
+  kableExtra::kbl(caption = 'Probabilidades de interacción para el gobierno de Duque',
+                    digits = 3) %>% 
+  kableExtra::row_spec(c(1,6,11), bold = T, color = "white", background = "#E46923") %>% 
+  kableExtra::kable_minimal()
+```
+
+Al igual que en el gobierno de Petro, las mayores probabilidades de conexión se presentan dentro de las mismas comunidades, lo que indica una preferencia de los nodos por relacionarse con miembros de su propio bloque. En particular, la comunidad C es la más cohesiva, con una probabilidad de interacción interna de 0.966, seguida por las comunidades A (0.418) y B (0.261). En contraste, la comunidad D presenta una baja probabilidad de conexión entre sus integrantes (0.039), lo que sugiere una menor cohesión interna. Asimismo, las probabilidades de interacción entre comunidades son, en general, reducidas, siendo la conexión entre los bloques B y C (0.072) la más alta entre comunidades distintas.
+
+#### Santos
+
+```{r tabla-pi-santos, fig.cap="Probabilidades de interacción para el gobierno de Santos"}
+tabla_pi %>% 
+  dplyr::filter(gobierno=="Santos") %>% 
+  dplyr::select(-gobierno) %>% 
+  kableExtra::kbl(caption = 'Probabilidades de interacción para el gobierno de Santos',
+                    digits = 3) %>% 
+  kableExtra::row_spec(c(1,8,22,29,36), 
+                       bold = T, color = "white", background = "#E46923") %>% 
+  kableExtra::row_spec(c(12,32), bold = T, color = "white", background = "#B0779E") %>% 
+  kableExtra::kable_minimal()
+```
+
+Al igual que en los gobiernos de Petro y Duque, las mayores probabilidades de interacción se presentan dentro de las mismas comunidades, destacándose los bloques B ($P_{BB}=0.976$) y F ($P_{FF}=0.965$), que exhiben una alta cohesión interna. Sin embargo, a diferencia de los casos anteriores, en el gobierno de Santos se observan probabilidades de interacción entre comunidades relativamente más altas. En particular, la conexión entre los bloques B y F alcanza una probabilidad de 0.165, mientras que entre B-D y B-E es de 0.078. Esto sugiere que, aunque el modelo identifica un mayor número de comunidades (seis bloques), estas no se encuentran completamente aisladas, sino que mantienen una mayor interacción entre sí.
+
+#### Uribe
+
+```{r tabla-pi-uribe, fig.cap="Probabilidades de interacción para el gobierno de Uribe"}
+tabla_pi %>% 
+  dplyr::filter(gobierno=="Uribe") %>% 
+  dplyr::select(-gobierno) %>% 
+  kableExtra::kbl(caption = 'Probabilidades de interacción para el gobierno de Uribe',
+                    digits = 3) %>% 
+  kableExtra::row_spec(c(5,9), bold = T, color = "white", background = "#E46923") %>% 
+  kableExtra::kable_minimal()
+```
+
+Al igual que en los gobiernos anteriores, las probabilidades de interacción son mayores dentro de las comunidades que entre ellas, lo que evidencia una preferencia por establecer conexiones con miembros del mismo bloque. No obstante, a diferencia de los demás gobiernos, ninguna comunidad presenta una cohesión interna tan marcada. Aunque el bloque B registra la mayor probabilidad de interacción dentro de la comunidad ($P_{BB}=0.628$), este valor es considerablemente inferior a los observados en los gobiernos de Petro, Duque y Santos. Asimismo, el bloque A exhibe una baja probabilidad de conexión interna ($P_{AA}=0.058$), mientras que el bloque C presenta una cohesión moderada ($P_{CC}=0.432$). Estos resultados sugieren que, si bien las comunidades identificadas en el gobierno de Uribe están definidas, sus fronteras son menos marcadas y las conexiones se encuentran menos concentradas dentro de cada bloque.
 
 ### Modelos de grafos aleatorios exponenciales
 
@@ -913,8 +1016,30 @@ tabla_sbm %>%
 tabla_ergm %>% 
   kableExtra::kbl(caption = 'Comparación de los modelos de grafos aleatorios exponenciales para los distintos gobiernos',
                     digits = 3) %>% 
+  kableExtra::row_spec(
+    c(2,5,9,10,11,12,13,16,21,23,27,28),
+    color = "#7f8c8d",
+    italic = TRUE
+  ) %>%
+  kableExtra::row_spec(
+    c(3,17,24),
+    bold = TRUE,
+    background = "#CF2F40",
+    color = "white"
+  ) %>%
   kableExtra::kable_minimal()
 ```
+
++ Los resultados indican que compartir el mismo **predecesor** no favorece la formación de vínculos; por el contrario, en tres de los cuatro gobiernos este atributo presenta separación completa, lo que sugiere que prácticamente no existen enlaces entre individuos que comparten un mismo predecesor.
+
++ En el gobierno de **Petro** la probabilidad de formar un vínculo aumenta entre individuos que comparten carrera, género y nivel educativo. Estos resultados son consistentes con la inspección visual de la red (Figura \@ref(fig:fig-petro)), donde se observa una mayor tendencia a establecer relaciones entre personas del mismo género.
+
++ En el gobierno de **Duque** únicamente el nivel de estudios presenta un efecto estadísticamente significativo. Esto sugiere que la similitud en la formación académica desempeña un papel importante en la formación de vínculos, mientras que las demás características analizadas no muestran evidencia suficiente de influir en la estructura de la red.
+
++ En el gobierno de **Santos**, aunque la visualización de la red no evidencia una comunidad claramente conformada por mujeres (Figura \@ref(fig:fig-santos)), el ERGM indica que el género sí incrementa la probabilidad de establecer vínculos entre individuos del mismo género. Esto refleja que la homofilia por género puede manifestarse localmente sin generar necesariamente comunidades bien definidas.
+
++ En el gobierno de **Uribe** compartir la misma carrera y, especialmente, la misma universidad incrementa la probabilidad de establecer vínculos. Esto sugiere que la formación académica constituye un mecanismo importante en la organización de la red.
+
 
 ### Modelos de Sociabilidad con covariables
 
@@ -922,8 +1047,15 @@ tabla_ergm %>%
 tabla_ame %>% 
   kableExtra::kbl(caption = 'Comparación de los modelos de sociabilidad para los distintos gobiernos',
                     digits = 3) %>% 
+  kableExtra::row_spec(
+    c(2,7,8,10,11,12,13,15,16,18,23,26,30,31,32),
+    color = "#7f8c8d",
+    italic = TRUE
+  ) %>%
   kableExtra::kable_minimal()
 ```
+
+En general, los modelos de sociabilidad evidencian que la formación de vínculos está asociada principalmente con características académicas y personales de los actores. La homofilia por carrera, universidad y nivel de estudios aparece de manera recurrente en varios gobiernos, mientras que la pertenencia al mismo partido político no muestra evidencia de influir en la formación de relaciones. Asimismo, compartir un mismo predecesor tampoco presenta un efecto consistente, lo que sugiere que las conexiones dentro de estas redes se estructuran más alrededor de trayectorias académicas y atributos individuales que de afinidades partidistas o de sucesión administrativa.
 
 ## f. Evalúe la bondad de ajuste de los modelos ajustados en el numeral anterior utilizando como estadísticos de prueba la densidad, la transitividad, la asortatividad y la distancia geodésica promedio. Presente los resultados en tablas y gráficos, interpretando detalladamente los hallazgos, identificando qué modelos capturan mejor las propiedades observadas en la red y limitando el análisis a un máximo de 1000 palabras. {.tabset}
 
@@ -1164,6 +1296,16 @@ graficar_gof(
   )
 ```
 
+#### Discusión
+
++ En todos los gobiernos, la densidad observada se encuentra dentro o muy cercana al rango intercuartílico de las redes simuladas, lo que indica que el modelo reproduce adecuadamente la proporción global de enlaces de las redes.
+
++ En los cuatro gobiernos la transitividad observada es considerablemente menor que la obtenida en las simulaciones. Esto indica que el modelo genera redes con una mayor tendencia al cierre triádico que la observada en los datos, es decir, sobreestima la formación de triángulos.
+
++ La capacidad del modelo para reproducir la asortatividad es heterogénea entre gobiernos, ya que en algunos casos la red observada presenta valores inferiores a los simulados y en otros superiores. Esto sugiere que la estructura de mezcla entre nodos no es capturada de manera uniforme por el modelo.
+
++ La distancia geodésica promedio observada es sistemáticamente inferior a la obtenida en las redes simuladas. Esto indica que el modelo genera redes menos compactas que las observadas, produciendo caminos promedio más largos entre los nodos.
+
 ### Modelos de grafos aleatorios exponenciales {.tabset}
 
 #### Petro
@@ -1206,6 +1348,14 @@ graficar_gof(
   )
 ```
 
+#### Discusión
+
++ En todos los gobiernos, la **densidad** observada se encuentra dentro o muy cercana al rango intercuartílico de las redes simuladas, lo que indica que el modelo reproduce adecuadamente la proporción global de enlaces de las redes.
+
++ En los cuatro gobiernos la **transitividad** y la **asortatividad** observada es considerablemente menor que la obtenida en las simulaciones. Esto indica que el modelo genera redes con una mayor tendencia al cierre triádico que la observada en los datos, es decir, sobreestima la formación de triángulos.
+
++ La capacidad del modelo para reproducir la **distancia** es heterogénea entre gobiernos, ya que en algunos casos la red observada presenta valores inferiores a los simulados y en otros superiores. Hay una excepción con el gobierno de **Uribe** cuya obserbación se encuentra dentro del rango intercuartílico.
+
 ### Modelos de sociabilidad con covariables {.tabset}
 
 #### Petro
@@ -1247,6 +1397,15 @@ graficar_gof(
     titulo = names(redes_poder)[4]
   )
 ```
+
+#### Discusión
+
++ La capacidad del modelo para reproducir la **densidad** es heterogénea entre gobiernos, ya que en algunos casos la red observada presenta valores superiores y hay otros que estan dentro del rango intercuartílico indicando que en alguno casos (de acuerdo con las figuras \@ref(fig:box-uribe) y \@ref(fig:box-duque)) logra reproducir adecuadamente la proporción global de enlaces.
+
++ En los cuatro gobiernos la **transitividad** y la **asortatividad** observada es considerablemente menor que la obtenida en las simulaciones. Esto indica que el modelo genera redes con una mayor tendencia al cierre triádico que la observada en los datos, es decir, sobreestima la formación de triángulos. Ocurre de manera similar con la **distancia** exceptuando el caso del gobierno de **Uribe** para el cual parece reproducir adecuadamente las distancias geodésicas.
+
+
+
 
 ## g. Repita los numerales b., c. y d. para la red completa, sin filtrar por gobierno. {.tabset}
 
@@ -1319,7 +1478,20 @@ ggraph(g_poder, layout = "fr") +
         shape = partido,
         size = grado
       )
-    ) +
+    ) + scale_shape_manual(
+  values = c(
+    "Pacto Histórico" = 16,      # círculo
+    "Centro Democrático" = 17,   # triángulo
+    "Partido de la U" = 15,      # cuadrado
+    "Liberal" = 18,              # rombo
+    "Conservador" = 8,           # estrella
+    "Cambio Radical" = 3,        # cruz
+    "Otros" = 7                  # cuadrado con cruz
+  )
+) + guides(
+  shape = guide_legend(nrow = 3, direction = "vertical"),
+  colour = guide_legend(nrow = 2, direction = "vertical"),
+  size=guide_legend(direction = "vertical") ) +
 
     labs(title = "Red completa") +
 
@@ -1329,6 +1501,12 @@ ggraph(g_poder, layout = "fr") +
       legend.position = "bottom"
     )
 ```
+
++ La visualización de la red permite observar que la mayoría de los actores se concentran en un componente principal, mientras que existen algunos nodos y pequeños grupos ubicados en la periferia. Asimismo, se aprecia una mayor proporción de hombres (azul) que de mujeres (rosa), lo que refleja un predominio masculino entre los integrantes de la red.
+
++ Aunque los nodos correspondientes a mujeres son menos numerosos, no se observa visualmente que conformen una comunidad claramente diferenciada, sino que se encuentran distribuidos en distintas regiones de la red.
+
++ En cuanto a la afiliación partidista, visualmente se observa una presencia importante de nodos correspondientes al Partido Conservador (estrella), especialmente en la zona central de la red. No obstante, no se evidencian agrupamientos claramente definidos por partido político, ya que las distintas formas aparecen mezcladas a lo largo del componente principal.
 
 ### Centralidad
 
