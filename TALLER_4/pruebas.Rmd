@@ -41,649 +41,9 @@ library(pROC)
 
 ```
 
-# Redes de poder en Colombia
-
-La base de datos poder disponible en la página web del curso corresponde a una red bipartita que relaciona funcionarios públicos con las entidades públicas en las que fueron nombrados a lo largo de seis gobiernos de Colombia, Uribe 1, Uribe 2, Santos 1, Santos 2, Duque y Petro. Específicamente, estos datos se representan mediante una matriz bipartita $\mathbf{A}=[a_{i,j}]$ de tamaño $n\times m$, donde $n$ representa el número de funcionarios y $m$ el número de entidades públicas. En esta matriz, $a_{i,j}=1$ si el funcionario $i$ fue nombrado en la entidad $j$, y $a_{i,j}=0$ en caso contrario. La base también incluye covariables individuales, como EDAD, GENERO, PARTIDO_POLITICO, NIVEL_DE_ESTUDIOS, UNIVERSIDAD, CARRERA y GOBERNACION. Esta informacion fue diseñada y recolectada junto con el estudiante Johan Andrés Hernández Sarmiento como parte de su trabajo de grado. La base tiene carácter estrictamente confidencial, por lo que ninguna persona cuenta con autorizacion para compartirla, reproducirla o divulgarla.
-
-El objetivo es llevar a cabo un análisis exhaustivo de las redes de poder en Colombia a través de distintos gobiernos. En el artículo Estos son los grupos políticos que sostienen al gobierno Petro y sus puntos de tension, los autores desarrollan un ejercicio similar, aunque a una escala mucho menor y con recursos teoricos, empíricos y metodologicos más limitados desde el punto de vista del análisis de redes. A pesar de su simplicidad técnica, este texto constituye un buen punto de partida para comprender el proposito general de este caso de estudio.
-
-## a. Filtre la base de datos usando la covariable GOBERNACION, de manera que se conserven todos aquellos funcionarios que hicieron parte del Gobierno Petro, incluso si también participaron en otros gobiernos. Sea $\mathbf{A}_{P}$ la matriz bipartita resultante de este filtro, de tamaño $n_P\times m$, donde $n_P$ corresponde al número de funcionarios del Gobierno Petro y $m$ corresponde al número de entidades públicas. A partir de esta matriz, construya la matriz de adyacencia ponderada $\mathbf{A}_{P}\mathbf{A}_{P}^{T}$, de tamaño $n_P\times n_P$. Luego, construya la matriz $\mathbf{Y}_P$ a partir de esta matriz de adyacencia ponderada, transformándola en una matriz binaria y fijando en cero los elementos de la diagonal principal. Repita este procedimiento para los gobiernos Duque, Santos y Uribe. En los casos de Santos y Uribe, combine los dos periodos de cada gobierno en una sola matriz. Al finalizar el proceso, debe contar con cuatro redes binarias no dirigidas, una para cada gobierno.
-
-```{r poder}
-poder <- read_excel("poder.xlsx", 
-    sheet = "GABINETE_LIMPIO")
-poder$EDAD <- as.numeric(poder$EDAD)
-entidades <- names(poder)[2:51]
-crear_red <- function(datos, gobierno) {
-
-  datos_gob <- datos  %>% 
-    filter(stringr::str_detect(GOBERNACION, gobierno))
-  
-  datos_gob <- datos_gob  %>% 
-  mutate(
-    partido_plot = case_when(
-      PARTIDO_POLITICO %in% c("PACTO HISTORICO", "PACTO HISTÓRICO") ~ "Pacto Histórico",
-
-      PARTIDO_POLITICO %in% c("CENTRO DEMOCRATICO", "CENTRO DEMOCRÁTICO") ~ "Centro Democrático",
-
-      PARTIDO_POLITICO %in% c("PARTIDO LIBERAL",
-                              "PARTIDO LIBERAL COLOMBIANO") ~ "Liberal",
-
-      PARTIDO_POLITICO %in% c("PARTIDO CONSERVADOR",
-                              "PARTIDO CONSERVADOR COLOMBIANO") ~ "Conservador",
-
-      PARTIDO_POLITICO %in% c("PARTIDO DE LA U",
-                              "PARTIDO SOCIAL DE UNIDAD NACIONAL") ~ "Partido de la U",
-
-      PARTIDO_POLITICO %in% c("CAMBIO RADICAL") ~ "Cambio Radical",
-
-      TRUE ~ "Otros"
-    )
-  )
-
-  nombres_petro <- datos_gob[[1]]
-
-  A <- datos_gob %>% 
-    select(all_of(entidades)) %>%
-    mutate(across(everything(), as.numeric)) %>%
-    as.matrix()
-
-  rownames(A) <- nombres_petro
-
-  W <- A %*% t(A)
-
-  Y <- ifelse(W > 0, 1, 0)
-
-  diag(Y) <- 0
-
-  return(list(adyacencia=Y,datos_gob=datos_gob))
-}
-y_petro <- crear_red(datos = poder,gobierno = "PETRO")
-y_duque <- crear_red(datos = poder,gobierno = "DUQUE")
-y_santos <- crear_red(datos = poder,gobierno = "SANTOS")
-y_uribe <- crear_red(datos = poder,gobierno = "URIBE")
-
-```
-
-## b. De manera paralela y comparativa, construya visualizaciones decoradas para cada red, aprovechando al máximo la informacion nodal disponible. Presente estas visualizaciones de forma estratégica, de modo que faciliten la comparacion entre gobiernos y permitan identificar patrones comunes, diferencias estructurales y posibles cambios en la configuracion de las redes de poder. {.tabset}
-
-```{r}
-crear_grafo <- function(Y, datos_gob) {
-
-  g <- graph_from_adjacency_matrix(
-    Y,
-    mode = "undirected",
-    diag = FALSE
-  )
-
-  V(g)$nombre <- datos_gob[[1]]
-  V(g)$partido <- datos_gob$partido_plot
-  V(g)$genero <- datos_gob$GENERO
-  V(g)$edad <- datos_gob$EDAD
-  V(g)$nivel_estudios <- datos_gob$NIVEL_DE_ESTUDIOS
-  V(g)$carrera <- datos_gob$CARRERA
-  V(g)$universidad <- datos_gob$UNIVERSIDAD
-  V(g)$predecesores <- datos_gob$PREDECESORES
-  V(g)$grado <- degree(g)
-
-  g
-}
-g_petro  <- crear_grafo(y_petro$adyacencia, y_petro$datos_gob)
-
-g_duque  <- crear_grafo(y_duque$adyacencia, y_duque$datos_gob)
-
-g_santos <- crear_grafo(y_santos$adyacencia, y_santos$datos_gob)
-
-g_uribe  <- crear_grafo(y_uribe$adyacencia, y_uribe$datos_gob)
-
-graficar_red <- function(g, titulo){
-
-  ggraph(g, layout = "fr") +
-
-    geom_edge_link(
-      alpha = .25,
-      colour = "grey70"
-    ) +
-
-    geom_node_point(
-      aes(
-        colour = genero,
-        shape = partido,
-        size = grado
-      )
-    ) + scale_shape_manual(
-  values = c(
-    "Pacto Histórico" = 16,      # círculo
-    "Centro Democrático" = 17,   # triángulo
-    "Partido de la U" = 15,      # cuadrado
-    "Liberal" = 18,              # rombo
-    "Conservador" = 8,           # estrella
-    "Cambio Radical" = 3,        # cruz
-    "Otros" = 7                  # cuadrado con cruz
-  )
-) + guides(
-  shape = guide_legend(nrow = 3, direction = "vertical"),
-  colour = guide_legend(nrow = 2, direction = "vertical"),
-  size=guide_legend(direction = "vertical")
-)   +
-    
-
-    labs(title = titulo) +
-
-    theme_minimal() +
-
-    theme(
-      legend.position = "bottom"
-    ) 
-}
-
-p1 <- graficar_red(g_petro, "Petro")
-p2 <- graficar_red(g_duque, "Duque")
-p3 <- graficar_red(g_santos, "Santos")
-p4 <- graficar_red(g_uribe, "Uribe")
-
-```
-
-### Petro
-
-```{r fig-petro, fig.cap="Red de funcionarios del Gobierno Petro.", fig.height=9}
-p1 
-```
-
-### Duque
-
-```{r fig-duque, fig.cap="Red de funcionarios del Gobierno Duque", fig.height=9}
-p2
-```
-
-### Santos
-
-```{r fig-santos, fig.cap="Red de funcionarios del Gobierno Santos.", fig.height=9}
-p3
-```
-
-### Uribe
-
-```{r fig-uribe, fig.cap="Red de funcionarios del Gobierno Uribe.", fig.height=9}
-p4
-```
-
-## Discusión
-
-- En la red del gobierno de Gustavo Petro se observa una proporción visual similar de hombres y mujeres. Aunque el presidente pertenece al **Pacto Histórico**, la red de funcionarios está conformada principalmente por miembros de partidos distintos a los tradicionales. Además, se evidencia la ausencia de integrantes del **Centro Democrático** y de **Cambio Radical**. En general, todos los partidos representados parecen tener cierta participación en la red, ya que cada uno cuenta con al menos algunos nodos de tamaño relativamente mayor (determinado por el grado).
-
-- En el gobierno de Iván Duque también se aprecia una proporción visual similar de hombres y mujeres. Aunque la red está integrada mayoritariamente por miembros de partidos distintos a los tradicionales, los nodos con mayor grado pertenecen en su mayoría al **Centro Democrático**, partido del que hacía parte el presidente. Esto podría sugerir una mayor centralidad de funcionarios de este partido dentro de la red. Asimismo, se observa la ausencia de miembros del **Pacto Histórico**.
-
-- En el gobierno de Juan Manuel Santos (considerando sus dos periodos presidenciales) se observa una mayor proporción de hombres que de mujeres. La red incluye representantes de todos los partidos analizados y está conformada principalmente por miembros de partidos distintos a los tradicionales. Sin embargo, los nodos con mayor grado pertenecen en su mayoría al **Partido de la U**, colectividad de la cual Santos fue cofundador, lo que podría reflejar una mayor centralidad de sus integrantes en la estructura de la red.
-
-- En el gobierno de Álvaro Uribe (considerando sus dos periodos presidenciales) también se evidencia una mayor proporción de hombres que de mujeres. Aunque la red está integrada principalmente por miembros de partidos distintos a los tradicionales, los nodos más centrales corresponden en su mayoría al **Centro Democrático**, partido con el que se encuentra asociado el expresidente. Este patrón podría ser consistente con una mayor presencia de funcionarios de dicha colectividad en posiciones centrales de la red. Asimismo, se observa la ausencia de miembros del **Pacto Histórico**.
-
-## c. Calcule medidas de centralidad para identificar cuáles son los funcionarios más influyentes dentro de cada red. A partir de estos resultados, construya visualizaciones decoradas que incorporen la informacion de centralidad de manera clara e informativa. Presente las visualizaciones de forma estratégica para comparar los resultados entre gobiernos. Finalmente, interprete los hallazgos de manera profunda, pero concisa, destacando sus posibles implicaciones políticas.
-
-```{r 1c centralidad, echo=FALSE}
-# medidas de centralidad
-medidas_1ccentralidad <- data.frame(
-  'Medidas/Departamento'= c('Grado','Cercania','Intermediacion','Propio')
-)
-
-redes_poder <- list(g_petro,
-                    g_duque,
-                    g_santos,
-                    g_uribe)
-names(redes_poder) <- c("Petro", "Duque", "Santos", "Uribe")
-
-for (i in 1:length(redes_poder)) {
-  dc <- degree(redes_poder[[i]], normalized = T)
-  cc <- closeness(redes_poder[[i]], normalized = T)
-  bc <- betweenness(redes_poder[[i]], normalized = T)
-  ec <- eigen_centrality(redes_poder[[i]])$vector
-  
-  df <- data.frame(
-    Media=c(mean(dc),mean(cc, na.rm = T),mean(bc), mean(ec)),
-      'Desv.Est.' = c(sd(dc), sd(cc, na.rm = T), sd(bc), sd(ec))
-  )
-  names(df) <- c(paste(names(df)[1],names(redes_poder)[i], sep = " " ),
-                 paste(names(df)[2],names(redes_poder)[i], sep = " " ))
-  medidas_1ccentralidad <- cbind(medidas_1ccentralidad,df)
-}
-
-names(medidas_1ccentralidad) <- c('Medidas / Departamentos',
-                                  rep(c('Media','Desviacion Estandar'),4))
-```
-
-```{r centralidad-tabla, tab.cap="Comparación medidas de centralidad entre los distintos gobiernos"}
-medidas_1ccentralidad %>% 
-  kableExtra::kbl(
-    caption = "Resultados",
-    digits = 3
-  ) %>% 
-  kableExtra::add_header_above(
-    header = c(
-      " " = 1,
-      stats::setNames(
-        rep(2, length(redes_poder)),
-        names(redes_poder)
-      )
-    )
-  ) %>% 
-  kableExtra::kable_minimal()
-```
-
-- **Grado.** Los cuatro gobiernos presentan un grado medio relativamente bajo (entre 0.047 y 0.078), lo que indica que, en promedio, los funcionarios están conectados con una pequeña proporción de los demás actores de la red. Santos y Uribe presentan los mayores grados medios, sugiriendo redes ligeramente más conectadas. La desviación estándar es considerable respecto a la media, lo que indica que existen actores mucho más conectados que otros.
-
-- **Cercanía.** Duque presenta la mayor cercanía promedio (0.675), seguido por Petro (0.595), mientras que Santos registra la menor (0.441). Esto sugiere que, en promedio, los funcionarios del gobierno de Duque pueden alcanzar al resto de actores mediante caminos más cortos que en los demás gobiernos. Las desviaciones estándar (entre 0.196 y 0.325) muestran que esta capacidad no es uniforme entre los nodos.
-
-- **Intermediación.** Los valores promedio son bajos en todos los gobiernos (0.007–0.015), indicando que la mayoría de los actores rara vez actúan como puentes entre otros. No obstante, las desviaciones estándar superan incluso la media, lo que sugiere que unos pocos nodos concentran gran parte de la intermediación mientras la mayoría tiene valores cercanos a cero.
-
-- **Centralidad de vector propio (eigenvector).** Uribe presenta el mayor promedio (0.218), seguido por Santos (0.185), Duque (0.157) y Petro (0.148). Esto indica que, en promedio, los actores de la red de Uribe están algo más conectados con otros actores importantes. De nuevo, las desviaciones estándar relativamente altas evidencian una distribución desigual de esta centralidad.
-
-## d. Analice cada una de las redes a nivel local y estructural mediante métricas de distancia, cohesion, conectividad y agrupamiento. Emplee un conjunto amplio de métricas que permita caracterizar de manera detallada las propiedades principales de cada red. Presente los resultados de forma estratégica, de modo que se facilite la comparacion entre gobiernos y se identifiquen similitudes, diferencias y cambios relevantes en la estructura de las redes de poder. Finalmente, interprete los hallazgos de manera profunda, pero concisa, destacando sus posibles implicaciones políticas. {.tabset}
-
-El análisis de cada métrica está dentro de cada pestaña.
-
-### Distancia
-
-```{r 2c distancia, echo=FALSE}
-tabla2cdistancia <- data.frame(
-  'Medidas/departamento'=c("Orden",
-                           "Tamaño",
-                           "Orden de la componente gigante",
-                           "Diámetro del grafo",
-                           "Camino del diámetro",
-                           "distancia media")
-                           )
-
-for (i in 1:length(redes_poder)) {
-    # componente gigante
-  df <- data.frame(
-    valor = c(vcount(redes_poder[[i]]),
-              ecount(redes_poder[[i]]),
-              max(components(redes_poder[[i]])$csize),
-              diameter(redes_poder[[i]],
-                       weights = NA),
-              paste0(names(get_diameter(redes_poder[[i]],
-                                        weights = NA)),
-                     collapse = ";"),
-              round(mean_distance(redes_poder[[i]], 
-                                  weights = NA,
-                                  directed = FALSE),3))
-  )
-  names(df) <- names(redes_poder)[i]
-  tabla2cdistancia <- cbind(tabla2cdistancia,df)
-}
-
-```
-
-```{r distancia-tabla, tab.cap="Comparación medidas de distancia entre los distintos gobiernos"}
-tabla2cdistancia %>% 
-  kableExtra::kbl(caption='Resultados', 
-                  digits=3) %>% 
-  kableExtra::kable_minimal()
-```
-
-Las cuatro redes presentan cierto grado de fragmentación, ya que la componente gigante no incluye a la totalidad de los actores. No obstante, el gobierno de Santos es el menos fragmentado, pues cerca del 79 % de los nodos pertenecen a la componente principal, seguido por Uribe (66 %), Petro (59 %) y Duque (45 %), siendo este último el gobierno con mayor fragmentación. En cuanto a las distancias geodésicas, las cuatro redes muestran valores muy similares: la distancia media se sitúa alrededor de tres pasos y el diámetro varía únicamente entre seis y siete. Esto sugiere que, dentro de las componentes conectadas, los actores pueden alcanzarse mediante pocos intermediarios y que la extensión máxima de las rutas más largas es comparable entre todos los gobiernos.
-
-### Cohesión
-
-```{r 2d cohesión, message=FALSE, warning=FALSE}
-colores <- rainbow(length(redes_poder))
-# frecuencias de clanes
-tabla_cliques <- list()
-for (i in 1:length(redes_poder)) {
-  tabla_cliques[[i]] <- sapply(
-  X = 1:clique_num(redes_poder[[i]]),
-  FUN = \(k) {
-    igraph::count_max_cliques(redes_poder[[i]], min = k, max = k)
-  }
-)
-
-tabla_cliques[[i]] <- data.frame(
-  clique=seq(1:length(tabla_cliques[[i]])),
-  frecuencia=tabla_cliques[[i]]
-)
-
-tabla_cliques[[i]] <- tabla_cliques[[i]] %>% filter(frecuencia!=0)
-}
-
-densidad2c <- data.frame(Valor='Densidad')
-par(mfrow = c(2, 2), mar = c(1, 1, 3, 1))
-for (j in 1:length(redes_poder)) {
-  clanes_maximal <- lapply(seq_along(largest_cliques(redes_poder[[j]])), function(k){
-  i <- largest_cliques(redes_poder[[j]])[[k]]
-  clan_maximal <- induced_subgraph(graph = redes_poder[[j]],vids = i)
-  plot(clan_maximal, main=paste("clan maximal", names(redes_poder)[j],'orden',vcount(clan_maximal),sep=' '),
-       vertex.size        = 25,
-       vertex.label = '',
-     #vertex.label.color = "black",
-     vertex.color       = colores[j], 
-     vertex.frame.color = "black",
-     edge.color         = "gray30")
-})
-  g <- redes_poder[[j]]
-
-  # componente gigante
-  comp <- components(g)
-  giant_id <- which(comp$membership == which.max(comp$csize))
-  g_gc <- induced_subgraph(g, giant_id)
-
-  df <- data.frame(densidad=edge_density(g_gc))
-  names(df) <- names(redes_poder)[j]
-  densidad2c <- cbind(densidad2c,df)
-}
-
-names(densidad2c)[1] <- ''
-
-```
-
-```{r cliques-petro, tab.cap="Cliques en la red del gobierno de Petro"}
-names(tabla_cliques[[1]]) <- c('Tamaño clique','cantidad de cliques')
-  tabla_cliques[[1]] %>%
-    kableExtra::kbl(
-      caption = paste(
-        "Clanes y su Frecuencia para",
-        names(redes_poder)[1]
-      ),
-      digits = 3,
-      format = 'html'
-    ) %>%
-    kableExtra::kable_minimal()
-```
-
-```{r cliques-duque, tab.cap="Cliques en la red del gobierno de Duque"}
-names(tabla_cliques[[2]]) <- c('Tamaño clique','cantidad de cliques')
-  tabla_cliques[[2]] %>%
-    kableExtra::kbl(
-      caption = paste(
-        "Clanes y su Frecuencia para",
-        names(redes_poder)[2]
-      ),
-      digits = 3,
-      format = 'html'
-    ) %>%
-    kableExtra::kable_minimal()
-```
-
-```{r cliques-santos, tab.cap="Cliques en la red del gobierno de Santos"}
-names(tabla_cliques[[3]]) <- c('Tamaño clique','cantidad de cliques')
-  tabla_cliques[[3]] %>%
-    kableExtra::kbl(
-      caption = paste(
-        "Clanes y su Frecuencia para",
-        names(redes_poder)[3]
-      ),
-      digits = 3,
-      format = 'html'
-    ) %>%
-    kableExtra::kable_minimal()
-```
-
-```{r cliques-uribe, tab.cap="Cliques en la red del gobierno de Uribe"}
-names(tabla_cliques[[4]]) <- c('Tamaño clique','cantidad de cliques')
-  tabla_cliques[[4]] %>%
-    kableExtra::kbl(
-      caption = paste(
-        "Clanes y su Frecuencia para",
-        names(redes_poder)[4]
-      ),
-      digits = 3,
-      format = 'html'
-    ) %>%
-    kableExtra::kable_minimal()
-```
-
-```{r tabla-densidad, tab.cap="Densidad de las componentes gigantes de los gobiernos"}
-densidad2c %>% 
-  kableExtra::kbl(
-    caption = "Densidad de las componentes gigantes de los gobiernos",
-    digits = 3
-  ) %>% 
-  kableExtra::kable_minimal()
-```
-
-En los cuatro gobiernos, la mayor parte de los cliques maximales corresponde a grupos pequeños de entre uno y tres actores. No obstante, existen diferencias en los cliques de mayor tamaño. El gobierno de Duque destaca por presentar 14 cliques de dos actores, mientras que Petro sobresale por contar con 12 cliques de cuatro actores. Por su parte, Santos presenta cinco cliques de seis actores y, además, concentra una mayor cantidad de cliques de siete y ocho actores, a pesar de ser la red con menor densidad global. Esto sugiere que, aunque la red de Santos es menos densa en términos generales, contiene varios subgrupos altamente cohesionados.
-
-### Conectividad
-
-```{r 1c conectividad, echo=FALSE}
-# frecuencias de clanes
-#table(sapply(X = cliques(graph = g_sym, min = 1,
- #                        max = clique_num(graph = g_sym)),
-  #           FUN = length))
-tabla.1cconectividad <- data.frame(Medidas=c(
-  "¿Está conectado", 
-  "Conectividad nodal", 
-  "Conectividad por aristas", 
-  "Puntos de artículación"
-))
-
-for (i in 1:length(redes_poder)) {
-  df <- data.frame(
-    Valores=c(is_connected(redes_poder[[i]]),
-             vertex_connectivity(redes_poder[[i]]),
-             edge_connectivity(redes_poder[[i]]),
-             paste(names(articulation_points(redes_poder[[i]])),
-                   collapse = ";"))
-  )
-  names(df) <- names(redes_poder)[i]
-  tabla.1cconectividad <- cbind(tabla.1cconectividad,df)
-}
-```
-
-```{r tabla-conectividad, tab.cap='Comparación de métricas de conectividad'}
-tabla.1cconectividad %>% 
-  kableExtra::kbl(caption = 'Comparación de métricas de conectividad',
-                    digits = 3) %>% 
-  kableExtra::kable_minimal()
-```
-
-Ninguna de las cuatro redes es conexa, por lo que tanto la conectividad nodal como la conectividad por aristas son iguales a cero. No obstante, todas presentan puntos de articulación, es decir, actores cuya eliminación incrementaría la fragmentación de la componente a la que pertenecen. Este patrón se observa incluso en las redes con mayor densidad (Duque y Uribe), lo que sugiere que una mayor densidad global no necesariamente implica una estructura más robusta frente a la eliminación de actores clave. En estas redes existen funcionarios que desempeñan un papel fundamental como puentes entre distintos grupos.
-
-### Agrupamiento
-
-```{r 1c agrupamiento, echo=FALSE, message=FALSE, warning=FALSE}
-tabla.1ctransitividadg <- data.frame(Medidas=c('Transitividad global'))
-
-for (i in 1:length(redes_poder)) {
-  df <- data.frame(
-    valores=transitivity(graph = redes_poder[[i]], type = "global")
-  )
-  names(df) <- names(redes_poder)[i]
-  tabla.1ctransitividadg <- cbind(tabla.1ctransitividadg,df)
-}
-names(tabla.1ctransitividadg)[1] <- ' ' 
-
-```
-
-```{r tabla-transitividad, tab.cap='Comparación transitividad global en los diferentes gobiernos'}
-tabla.1ctransitividadg %>% 
-  kableExtra::kbl(caption = 'Comparación transitividad global en los diferentes gobiernos',
-                    digits = 3) %>% 
-  kableExtra::kable_minimal()
-```
-
-```{r message=FALSE, warning=FALSE}
-tabla.1ctransitividadg <- lapply(
-  redes_poder,
-  function(g) {
-    
-    valores <- transitivity(
-      graph = g,
-      type = "local"
-    )
-    
-    valores[is.nan(valores)] <- NA
-    
-    return(valores)
-  }
-)
-
-graficos <- vector("list", length(redes_poder))
-for (i in 1:length(tabla.1ctransitividadg)) {
-  trans_global <- transitivity(
-    graph = redes_poder[[i]], 
-    type = 'global'
-  )
-  df <- data.frame(
-    transitividad=tabla.1ctransitividadg[[i]]
-  )
-  graficos[[i]] <- ggplot2::ggplot(data = df,
-                  mapping = aes(x = transitividad))+
-    ggplot2::geom_histogram(col ='gray24', fill = colores[i])+
-    ggplot2::labs(
-    title = names(tabla.1ctransitividadg)[i],
-    x = "Transitividad local",
-    y = "Frecuencia"
-  ) +
-    geom_vline(
-    aes(
-      xintercept = trans_global,
-      color = "Global"
-    ),
-    linewidth = 1.2
-  )   +
-    ggplot2::annotate(
-      "text",
-      x = trans_global,
-      y = Inf,
-      label = round(trans_global, 3),
-      vjust = 2,
-      color = "black"
-    ) +
-  scale_color_manual(
-    name = "",
-    values = c("Global" = "gray49")
-  ) +
-  theme_minimal()
-}
-```
-
-```{r mosaico-tl, fig.cap="Distribución de la transitividad local por gobiernos", fig.height=9, fig.width=7, message=FALSE, warning=FALSE}
-(graficos[[1]] | graficos[[2]]) /
-(graficos[[3]] | graficos[[4]])+
-  plot_annotation(
-    title = "Distribución de la transitividad local por gobierno"
-  )
-```
-
-Los cuatro gobiernos presentan niveles similares de transitividad global, con valores entre 0.629 y 0.652, lo que evidencia una elevada tendencia al agrupamiento local de los actores. Además, la distribución de la transitividad local presenta un sesgo hacia la izquierda, indicando que la mayor parte de los nodos posee valores relativamente altos de transitividad, mientras que son pocos los actores con coeficientes bajos. Esto sugiere que los funcionarios suelen formar grupos donde sus vecinos también se encuentran conectados entre sí.
-
-```{r 1c clusters, echo=FALSE, message=FALSE, warning=FALSE}
-
-clusters_lista <- list(
-  kc=cluster_fast_greedy,
-  clb=cluster_edge_betweenness,
-  cw=cluster_walktrap,
-  ci=cluster_infomap
-)
-
-clusters_coords <- list()
-layout_kk <- list()
-for (i in 1:length(redes_poder)) {
-  clusters_coords[[i]] <- lapply(clusters_lista, 
-                                 \(f) f(redes_poder[[i]]))
-  
-set.seed(831)
-layout_kk[[i]] <- layout_with_kk(redes_poder[[i]])
-}
-
-validacion2dclusters <- lapply(
-  clusters_coords,
-  \(x) {
-    mods <- sapply(x, modularity)
-
-    x[[which.max(mods)]]
-  }
-)
-
-names(validacion2dclusters) <- names(redes_poder)
-
-par(mfrow=c(1,2), oma = c(0, 0, 3, 0))
-set.seed(2103)
-
-for (i in seq_along(validacion2dclusters)) {
-
-  clust <- validacion2dclusters[[i]]
-
-    ord <- order(
-      sizes(clust),
-      decreasing = TRUE
-    )[1:min(10, length(sizes(clust)))]
-    
-    
-
-    plot(
-      x = clust,
-      y = redes_poder[[i]],
-      layout = layout_kk[[i]],
-      vertex.size = 12,
-      vertex.label = NA
-    )
-
-    plot.new()
-    
-    legend(
-      "center",
-      legend = c(
-        "Top 10 clusters:",
-        paste0(
-          " - Cluster ",
-          ord,
-          " (n = ",
-          sizes(clust)[ord],
-          ")"
-        )
-      ),
-      col = c(
-        NA,
-        rainbow(length(sizes(clust)))[ord]
-      ),
-      pch = c(
-        NA,
-        rep(19, length(ord))
-      ),
-      pt.cex = 1.5,
-      bty = "n"
-    )
-    mtext(
-  paste("Gobierno de", names(redes_poder)[i],
-        "cluster", validacion2dclusters[[i]]$algorithm),
-  outer = TRUE,
-  side = 3,
-  line = 1.5,
-  cex = 1.1
-)
-  
-}
-  
-
-
-```
-
-En cuanto a la detección de comunidades, el algoritmo Infomap obtuvo los mayores valores de modularidad en las redes de Petro y Duque, mientras que en las redes de Santos y Uribe el mejor desempeño correspondió al algoritmo basado en betweenness. Las diferencias en la modularidad sugieren que la organización interna de las redes varía entre gobiernos. En algunos casos las comunidades se identifican mejor mediante el flujo de información (Infomap), mientras que en otros resulta más efectiva la eliminación progresiva de aristas con alta intermediación (betweenness), reflejando distintas formas de organización estructural.
-
-## e. Ajuste, de manera independiente para cada red, un modelo de bloques estocásticos, un modelo de grafos aleatorios exponenciales y un modelo de socialidad con covariables. En el caso del modelo de grafos aleatorios exponenciales, incluya como términos del predictor lineal el número de aristas y las covariables con efectos homofílicos. Para el modelo de socialidad, incorpore también covariables con efectos homofílicos. Presente todos los resultados de forma estratégica, de modo que se facilite la comparacion entre gobiernos y se identifiquen diferencias relevantes en la estructura de las redes de poder. Finalmente, interprete los resultados de manera profunda, pero concisa, destacando sus posibles implicaciones políticas. {.tabset}
-
 ```{r include=FALSE}
 # bloques estocasticos
-sbm_modelos <- lapply(
-  redes_poder,
-  function(g) {
 
-    Y <- as_adjacency_matrix(
-      g,
-      sparse = FALSE
-    )
-
-    modelo <- BM_bernoulli(
-      "SBM",
-      Y
-    )
-
-    modelo$estimate()
-
-    modelo
-  }
-)
 
 extraer_sbm <- function(modelo){
 
@@ -708,18 +68,6 @@ extraer_sbm <- function(modelo){
 }
 
 
-tabla_sbm <- dplyr::bind_rows(
-  Map(
-    function(mod, nombre) {
-      cbind(
-        gobierno = nombre,
-        extraer_sbm(mod)
-      )
-    },
-    sbm_modelos,
-    names(redes_poder)
-  )
-)
 
 extraer_pi <- function(modelo){
 
@@ -731,42 +79,11 @@ extraer_pi <- function(modelo){
 
 }
 
-tabla_pi <- dplyr::bind_rows(
-  Map(
-    function(mod, nombre){
 
-      salida <- extraer_pi(mod)
-
-      salida$gobierno <- nombre
-
-      salida
-
-    },
-    sbm_modelos,
-    names(redes_poder)
-  )
-)
 
 
 # ergm 
-ergm_modelos <- lapply(
-  redes_poder,
-  function(g) {
 
-    g_net <- asNetwork(g)
-
-    ergm(
-      g_net ~
-        edges +
-        nodematch("partido") +
-        nodematch("predecesores") +
-        nodematch("carrera") +
-        nodematch("universidad") +
-        nodematch("genero") +
-        nodematch("nivel_estudios") 
-    )
-  }
-)
 
 extraer_ergm <- function(modelo){
 
@@ -785,97 +102,10 @@ extraer_ergm <- function(modelo){
 
 }
 
-tabla_ergm <- dplyr::bind_rows(
-  Map(
-    function(mod, nombre){
 
-      salida <- extraer_ergm(mod)
 
-      salida$gobierno <- nombre
-
-      salida
-
-    },
-
-    ergm_modelos,
-
-    names(redes_poder)
-
-  )
-)
-
-tabla_ergm <- tabla_ergm  %>% 
-  dplyr::select(
-    gobierno,
-    termino,
-    estimacion,
-    error_std,
-    estadistico,
-    p
-  )
 
 # sociabilidad
-socialidad_modelos <- lapply(
-  redes_poder,
-  function(g) {
-
-    # Matriz de adyacencia
-    Y <- as.matrix(
-      as_adjacency_matrix(
-        g,
-        sparse = FALSE
-      )
-    )
-
-    n <- nrow(Y)
-
-    # Arreglo de covariables diádicas
-    Xdyad <- array(
-      NA_real_,
-      dim = c(n, n, 7)
-    )
-
-    Xdyad[, , 1] <- outer(V(g)$partido,
-                          V(g)$partido,
-                          "==") * 1
-
-    Xdyad[, , 2] <- outer(V(g)$genero,
-                          V(g)$genero,
-                          "==") * 1
-
-    Xdyad[, , 3] <- outer(V(g)$carrera,
-                          V(g)$carrera,
-                          "==") * 1
-
-    Xdyad[, , 4] <- outer(V(g)$universidad,
-                          V(g)$universidad,
-                          "==") * 1
-
-    Xdyad[, , 5] <- outer(V(g)$nivel_estudios,
-                          V(g)$nivel_estudios,
-                          "==") * 1
-
-    Xdyad[, , 6] <- outer(V(g)$predecesores,
-                          V(g)$predecesores,
-                          "==") * 1
-
-    edad <- V(g)$edad
-
-    Xdyad[, , 7] <- outer(
-      edad,
-      edad,
-      function(x, y) abs(x - y) <= 5
-    ) * 1
-
-    amen::ame(
-      Y = Y,
-      Xdyad = Xdyad,
-      family = "bin",
-      symmetric = TRUE,
-      plot = FALSE
-    )
-  }
-)
 
 extraer_ame <- function(modelo){
 
@@ -903,619 +133,243 @@ extraer_ame <- function(modelo){
 
 }
 
-tabla_ame <- dplyr::bind_rows(
-  Map(
-    function(mod, nombre){
 
-      salida <- extraer_ame(mod)
 
-      salida$gobierno <- nombre
 
-      salida
 
-    },
 
-    socialidad_modelos,
+```
 
-    names(redes_poder)
+# Mafia
 
+El objetivo de este taller es analizar la estructura de una red social derivada de la orden de detencion preventiva emitida por el Tribunal de Messina en marzo de 2007, en el marco de la operacion anti mafia “Montagna”. La investigacion se centro en la familia “Mistretta” y el clan “Batanesi”, que infiltraron diversas actividades economicas entre 2003 y 2007. Los datos se encuentran en el archivo *mafia.RData*. La red representa individuos y relaciones asociadas con actividades ilícitas, donde los nodos corresponden a personas o entidades y los arcos a relaciones de influencia o interaccion. La red es dirigida y ponderada.
+
+## a. Explorar la estructura de los datos de nodos y aristas, identificar la informacion relevante para el análisis, verificar si la red es simple y ponderada, construir la red, calcular su orden y tamaño, generar una visualizacion inicial e identificar los nodos más conectados. {.tabset}
+
+### Resumen
+
+```{r mafia}
+load("C:/PERSONAL_MAPU/UNIVERSIDADES/NACIONAL/ANALISIS_ESTADISTICO_DE_REDES/TALLER_3/REDES_TALLER_2/TALLER_4/mafia.rdata")
+
+
+names(datos) <- c("from", "to", "weight")
+g <- graph_from_data_frame(
+  d = datos,
+  directed = TRUE
+)
+
+# table(E(G)$weight) G es no dirigida, pero el enunciado dice lo opuesto
+# table(E(g)$weight) son iguales entonces copiare el role de G a g
+# all.equal(
+#     as_adjacency_matrix(
+#        as_undirected(g),
+#        attr = "weight"
+#    ),
+#    as_adjacency_matrix(
+#        G,
+#        attr = "weight"
+#    )
+#)
+# [1] TRUE  -> son iguales
+
+V(g)$role <- V(G)$role
+
+V(g)$clan <- str_extract(
+  V(g)$role,
+  "(?<=family '').*?(?='')"
+)
+
+V(g)$clan[is.na(V(g)$clan)] <- "Sin clan"
+
+resumen <- data.frame(
+  Propiedad = c(
+    "Red simple",
+    "Red ponderada",
+    "Red dirigida",
+    "Orden",
+    "Tamaño"
+  ),
+  Valor = c(
+    is_simple(g),
+    is_weighted(g),
+    is_directed(g),
+    vcount(g),
+    ecount(g)
   )
 )
 
-tabla_ame <- tabla_ame  %>% 
-  dplyr::select(
-    gobierno,
-    termino,
-    media,
-    sd,
-    li95,
-    ls95
-  )
-
 
 ```
 
-### Modelos de bloques estocásticos {.tabset}
-
-#### Resumen 
-
-```{r estocasticos-poder, tab.cap="Comparación de los modelos de bloques estocásticos para los distintos gobiernos"}
-tabla_sbm %>% 
-  dplyr::select(-"PL") %>% 
-  kableExtra::kbl(caption = 'Comparación de los modelos de bloques estocásticos para los distintos gobiernos',
-                    digits = 3) %>% 
+```{r tabla-mafia, echo=FALSE, message=FALSE, warning=FALSE, tab.cap="Resumen de l red de Mafia"}
+resumen %>% 
+  kableExtra::kbl(caption='Resumen', 
+                  digits=3) %>% 
   kableExtra::kable_minimal()
 ```
 
-+ Se observa que, de los cuatro gobiernos analizados, el de Santos es el que presenta el mayor número de comunidades, con un total de seis bloques, mientras que el gobierno de Uribe presenta la menor cantidad, con tres bloques. Esto sugiere que la red del gobierno de Santos posee una estructura más subdividida que la de los demás gobiernos. Asimismo, en los cuatro casos se evidencia una distribución heterogénea de los tamaños de las comunidades, ya que los bloques contienen diferentes cantidades de nodos. Un aspecto llamativo es que en todos los gobiernos existe una comunidad considerablemente más grande que las demás; por ejemplo, en los gobiernos de Petro y Uribe el bloque más grande está conformado por 41 y 31 nodos, respectivamente, mientras que las comunidades restantes oscilan entre 10 y 16 nodos en el caso de Petro y entre 12 y 13 nodos en el caso de Uribe.
+### Visualización
 
-+ Los valores de ICL y PL observados en \@ref(tab:estocasticos-poder) corresponden a criterios utilizados para seleccionar el modelo de bloques. Aunque no son comparables directamente entre gobiernos debido a que cada red tiene diferente tamaño y estructura, sí permiten identificar el modelo óptimo dentro de cada caso de estudio.
+```{r fig.height=12, fig.width=9}
+set.seed(2105)
 
-#### Petro
-
-```{r tabla-pi-petro, fig.cap="Probabilidades de interacción para el gobierno de Petro"}
-tabla_pi %>% 
-  dplyr::filter(gobierno=="Petro") %>% 
-  dplyr::select(-gobierno) %>% 
-  kableExtra::kbl(caption = 'Probabilidades de interacción para el gobierno de Petro',
-                    digits = 3) %>% 
-  kableExtra::row_spec(c(3,7,11,15), bold = T, color = "white", background = "#B0779E") %>% 
-  kableExtra::row_spec(16, bold = T, color = "white", background = "#E46923") %>% 
-  kableExtra::kable_minimal()
+plot(
+  g,
+  vertex.size = 8,
+  vertex.label = NA,
+  edge.color = "gray70"
+)
 ```
 
-Se observa que las comunidades presentan una mayor probabilidad de interacción dentro de sí mismas que con las demás comunidades. En particular, el bloque D destaca por presentar una probabilidad de conexión interna muy alta ($P_{DD}=0.981$), lo que indica una comunidad altamente cohesiva. En contraste, el bloque C exhibe una baja probabilidad de conexión tanto entre sus propios miembros ($P_{CC}=0.053$) como con los demás bloques, lo que sugiere que constituye una comunidad poco conectada con el resto de la red.
-
-#### Duque
-
-```{r tabla-pi-duque, fig.cap="Probabilidades de interacción para el gobierno de Duque"}
-tabla_pi %>% 
-  dplyr::filter(gobierno=="Duque") %>% 
-  dplyr::select(-gobierno) %>% 
-  kableExtra::kbl(caption = 'Probabilidades de interacción para el gobierno de Duque',
-                    digits = 3) %>% 
-  kableExtra::row_spec(c(1,6,11), bold = T, color = "white", background = "#E46923") %>% 
-  kableExtra::kable_minimal()
-```
-
-Al igual que en el gobierno de Petro, las mayores probabilidades de conexión se presentan dentro de las mismas comunidades, lo que indica una preferencia de los nodos por relacionarse con miembros de su propio bloque. En particular, la comunidad C es la más cohesiva, con una probabilidad de interacción interna de 0.966, seguida por las comunidades A (0.418) y B (0.261). En contraste, la comunidad D presenta una baja probabilidad de conexión entre sus integrantes (0.039), lo que sugiere una menor cohesión interna. Asimismo, las probabilidades de interacción entre comunidades son, en general, reducidas, siendo la conexión entre los bloques B y C (0.072) la más alta entre comunidades distintas.
-
-#### Santos
-
-```{r tabla-pi-santos, fig.cap="Probabilidades de interacción para el gobierno de Santos"}
-tabla_pi %>% 
-  dplyr::filter(gobierno=="Santos") %>% 
-  dplyr::select(-gobierno) %>% 
-  kableExtra::kbl(caption = 'Probabilidades de interacción para el gobierno de Santos',
-                    digits = 3) %>% 
-  kableExtra::row_spec(c(1,8,22,29,36), 
-                       bold = T, color = "white", background = "#E46923") %>% 
-  kableExtra::row_spec(c(12,32), bold = T, color = "white", background = "#B0779E") %>% 
-  kableExtra::kable_minimal()
-```
-
-Al igual que en los gobiernos de Petro y Duque, las mayores probabilidades de interacción se presentan dentro de las mismas comunidades, destacándose los bloques B ($P_{BB}=0.976$) y F ($P_{FF}=0.965$), que exhiben una alta cohesión interna. Sin embargo, a diferencia de los casos anteriores, en el gobierno de Santos se observan probabilidades de interacción entre comunidades relativamente más altas. En particular, la conexión entre los bloques B y F alcanza una probabilidad de 0.165, mientras que entre B-D y B-E es de 0.078. Esto sugiere que, aunque el modelo identifica un mayor número de comunidades (seis bloques), estas no se encuentran completamente aisladas, sino que mantienen una mayor interacción entre sí.
-
-#### Uribe
-
-```{r tabla-pi-uribe, fig.cap="Probabilidades de interacción para el gobierno de Uribe"}
-tabla_pi %>% 
-  dplyr::filter(gobierno=="Uribe") %>% 
-  dplyr::select(-gobierno) %>% 
-  kableExtra::kbl(caption = 'Probabilidades de interacción para el gobierno de Uribe',
-                    digits = 3) %>% 
-  kableExtra::row_spec(c(5,9), bold = T, color = "white", background = "#E46923") %>% 
-  kableExtra::kable_minimal()
-```
-
-Al igual que en los gobiernos anteriores, las probabilidades de interacción son mayores dentro de las comunidades que entre ellas, lo que evidencia una preferencia por establecer conexiones con miembros del mismo bloque. No obstante, a diferencia de los demás gobiernos, ninguna comunidad presenta una cohesión interna tan marcada. Aunque el bloque B registra la mayor probabilidad de interacción dentro de la comunidad ($P_{BB}=0.628$), este valor es considerablemente inferior a los observados en los gobiernos de Petro, Duque y Santos. Asimismo, el bloque A exhibe una baja probabilidad de conexión interna ($P_{AA}=0.058$), mientras que el bloque C presenta una cohesión moderada ($P_{CC}=0.432$). Estos resultados sugieren que, si bien las comunidades identificadas en el gobierno de Uribe están definidas, sus fronteras son menos marcadas y las conexiones se encuentran menos concentradas dentro de cada bloque.
-
-### Modelos de grafos aleatorios exponenciales
-
-```{r ERGM-poder, tab.cap="Comparación de los modelos de grafos aleatorios exponenciales para los distintos gobiernos"}
-tabla_ergm %>% 
-  kableExtra::kbl(caption = 'Comparación de los modelos de grafos aleatorios exponenciales para los distintos gobiernos',
-                    digits = 3) %>% 
-  kableExtra::row_spec(
-    c(2,5,9,10,11,12,13,16,21,23,27,28),
-    color = "#7f8c8d",
-    italic = TRUE
-  ) %>%
-  kableExtra::row_spec(
-    c(3,17,24),
-    bold = TRUE,
-    background = "#CF2F40",
-    color = "white"
-  ) %>%
-  kableExtra::kable_minimal()
-```
-
-+ Los resultados indican que compartir el mismo **predecesor** no favorece la formación de vínculos; por el contrario, en tres de los cuatro gobiernos este atributo presenta separación completa, lo que sugiere que prácticamente no existen enlaces entre individuos que comparten un mismo predecesor.
-
-+ En el gobierno de **Petro** la probabilidad de formar un vínculo aumenta entre individuos que comparten carrera, género y nivel educativo. Estos resultados son consistentes con la inspección visual de la red (Figura \@ref(fig:fig-petro)), donde se observa una mayor tendencia a establecer relaciones entre personas del mismo género.
-
-+ En el gobierno de **Duque** únicamente el nivel de estudios presenta un efecto estadísticamente significativo. Esto sugiere que la similitud en la formación académica desempeña un papel importante en la formación de vínculos, mientras que las demás características analizadas no muestran evidencia suficiente de influir en la estructura de la red.
-
-+ En el gobierno de **Santos**, aunque la visualización de la red no evidencia una comunidad claramente conformada por mujeres (Figura \@ref(fig:fig-santos)), el ERGM indica que el género sí incrementa la probabilidad de establecer vínculos entre individuos del mismo género. Esto refleja que la homofilia por género puede manifestarse localmente sin generar necesariamente comunidades bien definidas.
-
-+ En el gobierno de **Uribe** compartir la misma carrera y, especialmente, la misma universidad incrementa la probabilidad de establecer vínculos. Esto sugiere que la formación académica constituye un mecanismo importante en la organización de la red.
-
-
-### Modelos de Sociabilidad con covariables
-
-```{r sociabilidad-poder, tab.cap="Comparación de los modelos de sociabilidad para los distintos gobiernos"}
-tabla_ame %>% 
-  kableExtra::kbl(caption = 'Comparación de los modelos de sociabilidad para los distintos gobiernos',
-                    digits = 3) %>% 
-  kableExtra::row_spec(
-    c(2,7,8,10,11,12,13,15,16,18,23,26,30,31,32),
-    color = "#7f8c8d",
-    italic = TRUE
-  ) %>%
-  kableExtra::kable_minimal()
-```
-
-En general, los modelos de sociabilidad evidencian que la formación de vínculos está asociada principalmente con características académicas y personales de los actores. La homofilia por carrera, universidad y nivel de estudios aparece de manera recurrente en varios gobiernos, mientras que la pertenencia al mismo partido político no muestra evidencia de influir en la formación de relaciones. Asimismo, compartir un mismo predecesor tampoco presenta un efecto consistente, lo que sugiere que las conexiones dentro de estas redes se estructuran más alrededor de trayectorias académicas y atributos individuales que de afinidades partidistas o de sucesión administrativa.
-
-## f. Evalúe la bondad de ajuste de los modelos ajustados en el numeral anterior utilizando como estadísticos de prueba la densidad, la transitividad, la asortatividad y la distancia geodésica promedio. Presente los resultados en tablas y gráficos, interpretando detalladamente los hallazgos, identificando qué modelos capturan mejor las propiedades observadas en la red y limitando el análisis a un máximo de 1000 palabras. {.tabset}
+### Nodos más conectados
 
 ```{r}
-estadisticas_red <- function(g){
 
-  c(
-    densidad = edge_density(g),
-    transitividad = transitivity(g, type = "global"),
-    asortatividad = assortativity_degree(g, directed = FALSE),
-    distancia = mean_distance(g, directed = FALSE)
-  )
-
-}
-
-estadisticas_observadas <- lapply(
-  redes_poder,
-  estadisticas_red
+grado <- degree(g)
+top10 <- data.frame(
+  nodo = names(grado),
+  grado = grado
 )
 
-estadisticas_simuladas <- function(simulaciones){
-
-  dplyr::bind_rows(
-
-    lapply(
-
-      simulaciones,
-
-      function(red){
-
-        # Solo convertir si es un objeto network
-        if(inherits(red, "network")){
-          red <- intergraph::asIgraph(red)
-        }
-
-        as.data.frame(
-          as.list(
-            estadisticas_red(red)
-          )
-        )
-
-      }
-
-    )
-
-  )
-
-}
-graficar_gof <- function(simulados,
-                         observado,
-                         titulo = ""){
-
-  par(mfrow = c(2,2))
-
-  estadisticos <- c(
-    "densidad",
-    "transitividad",
-    "asortatividad",
-    "distancia"
-  )
-
-  for(est in estadisticos){
-
-    boxplot(
-      simulados[[est]],
-      main = est,
-      ylab = est
-    )
-
-    abline(
-      h = observado[est],
-      col = "red",
-      lwd = 2
-    )
-
-  }
-
-  mtext(
-    titulo,
-    outer = TRUE,
-    line = -2,
-    cex = 1.2
-  )
-
-}
-
-
-#Bloques estocásticos
-simular_sbm <- function(modelo, nsim = 500){
-
-  k_opt <- which.max(modelo$ICL)
-
-  P <- modelo$prediction(k_opt)
-
-  n <- nrow(P)
-
-  sims <- vector("list", nsim)
-
-  for(i in seq_len(nsim)){
-
-    Y <- matrix(0, n, n)
-
-    Y[upper.tri(Y)] <-
-      rbinom(
-        sum(upper.tri(Y)),
-        1,
-        P[upper.tri(P)]
-      )
-
-    Y <- Y + t(Y)
-
-    sims[[i]] <- igraph::graph_from_adjacency_matrix(
-      Y,
-      mode = "undirected"
-    )
-
-  }
-
-  sims
-
-}
-
-sim_sbm <- lapply(
-  sbm_modelos,
-  simular_sbm,
-  nsim = 500
-)
-
-estadisticas_sim_sbm <-
-  lapply(
-    sim_sbm,
-    estadisticas_simuladas
-  )
-
-
-
-# ERGM
-sim_ergm <- lapply(
-  ergm_modelos,
-  simulate,
-  nsim = 500
-)
-estadisticas_sim_ergm <-
-  lapply(
-    sim_ergm,
-    estadisticas_simuladas
-  )
-
-# ame
-
-simular_ame <- function(modelo, nsim = 500){
-
-  P <- modelo$YPM
-
-  n <- nrow(P)
-
-  sims <- vector("list", nsim)
-
-  for(i in seq_len(nsim)){
-
-    Y <- matrix(0, n, n)
-
-    Y[upper.tri(Y)] <-
-      rbinom(
-        sum(upper.tri(Y)),
-        1,
-        P[upper.tri(P)]
-      )
-
-    Y <- Y + t(Y)
-
-    sims[[i]] <-
-      igraph::graph_from_adjacency_matrix(
-        Y,
-        mode = "undirected",
-        diag = FALSE
-      )
-
-  }
-
-  sims
-
-}
-
-sim_ame <- lapply(
-  socialidad_modelos,
-  simular_ame,
-  nsim = 500
-)
-
-estadisticas_sim_ame <-
-  lapply(
-    sim_ame,
-    estadisticas_simuladas
-  )
-
+top10 <- top10  %>% 
+  dplyr::arrange(desc(grado))  %>% 
+  dplyr::slice(1:10)
+row.names(top10) <- NULL
 ```
 
-### Modelos de bloques estocásticos {.tabset}
-
-#### Petro
-
-```{r bs-petro, fig.cap="Comparación estadísticos en el modelo de bloques estocásticos para el gobierno de Petro", fig.height=14, fig.width=9, fig.align='center'}
-graficar_gof(
-    simulados = estadisticas_sim_sbm[[1]],
-    observado = estadisticas_observadas[[1]],
-    titulo = names(redes_poder)[1]
-  )
+```{r grado-mafia, echo=FALSE, message=FALSE, warning=FALSE, tab.cap="Top 10 nodos con mayor grado"}
+top10 %>% 
+  kableExtra::kbl(caption='Top 10 nodos con mayor grado', 
+                  digits=3) %>% 
+  kableExtra::kable_minimal()
 ```
 
-#### Duque
+## b. Analizar la estructura global de la red mediante el grado nodal, la conectividad, los componentes, el diámetro y las distancias geodésicas, complementando el estudio con una visualizacion en la que los nodos se distingan por clan y tamaño según su grado. {.tabset}
 
-```{r bs-duque, fig.cap="Comparación estadísticos en el modelo de bloques estocásticos para el gobierno de duque", fig.height=14, fig.width=9, fig.align='center'}
-graficar_gof(
-    simulados = estadisticas_sim_sbm[[2]],
-    observado = estadisticas_observadas[[2]],
-    titulo = names(redes_poder)[2]
-  )
-```
-
-#### Santos
-
-```{r bs-santos, fig.cap="Comparación estadísticos en el modelo de bloques estocásticos para el gobierno de Santos", fig.height=14, fig.width=9, fig.align='center'}
-graficar_gof(
-    simulados = estadisticas_sim_sbm[[3]],
-    observado = estadisticas_observadas[[3]],
-    titulo = names(redes_poder)[3]
-  )
-```
-
-#### Uribe
-
-```{r bs-uribe, fig.cap="Comparación estadísticos en el modelo de bloques estocásticos para el gobierno de Uribe", fig.height=14, fig.width=9, fig.align='center'}
-graficar_gof(
-    simulados = estadisticas_sim_sbm[[4]],
-    observado = estadisticas_observadas[[4]],
-    titulo = names(redes_poder)[4]
-  )
-```
-
-#### Discusión
-
-+ En todos los gobiernos, la densidad observada se encuentra dentro o muy cercana al rango intercuartílico de las redes simuladas, lo que indica que el modelo reproduce adecuadamente la proporción global de enlaces de las redes.
-
-+ En los cuatro gobiernos la transitividad observada es considerablemente menor que la obtenida en las simulaciones. Esto indica que el modelo genera redes con una mayor tendencia al cierre triádico que la observada en los datos, es decir, sobreestima la formación de triángulos.
-
-+ La capacidad del modelo para reproducir la asortatividad es heterogénea entre gobiernos, ya que en algunos casos la red observada presenta valores inferiores a los simulados y en otros superiores. Esto sugiere que la estructura de mezcla entre nodos no es capturada de manera uniforme por el modelo.
-
-+ La distancia geodésica promedio observada es sistemáticamente inferior a la obtenida en las redes simuladas. Esto indica que el modelo genera redes menos compactas que las observadas, produciendo caminos promedio más largos entre los nodos.
-
-### Modelos de grafos aleatorios exponenciales {.tabset}
-
-#### Petro
-
-```{r ergm-petro, fig.cap="Comparación estadísticos en el modelo de grafos aleatorios exponenciales para el gobierno de Petro", fig.height=14, fig.width=9, fig.align='center'}
-graficar_gof(
-    simulados = estadisticas_sim_ergm[[1]],
-    observado = estadisticas_observadas[[1]],
-    titulo = names(redes_poder)[1]
-  )
-```
-
-#### Duque
-
-```{r ergm-duque, fig.cap="Comparación estadísticos en el modelo de grafos aleatorios exponenciales para el gobierno de Duque", fig.height=14, fig.width=9, fig.align='center'}
-graficar_gof(
-    simulados = estadisticas_sim_ergm[[2]],
-    observado = estadisticas_observadas[[2]],
-    titulo = names(redes_poder)[2]
-  )
-```
-
-#### Santos
-
-```{r ergm-santos, fig.cap="Comparación estadísticos en el modelo de grafos aleatorios exponenciales para el gobierno de Santos", fig.height=14, fig.width=9, fig.align='center'}
-graficar_gof(
-    simulados = estadisticas_sim_ergm[[3]],
-    observado = estadisticas_observadas[[3]],
-    titulo = names(redes_poder)[3]
-  )
-```
-
-#### Uribe
-
-```{r ergm-uribe, fig.cap="Comparación estadísticos en el modelo de grafos aleatorios exponenciales para el gobierno de Uribe", fig.height=14, fig.width=9, fig.align='center'}
-graficar_gof(
-    simulados = estadisticas_sim_ergm[[4]],
-    observado = estadisticas_observadas[[4]],
-    titulo = names(redes_poder)[4]
-  )
-```
-
-#### Discusión
-
-+ En todos los gobiernos, la **densidad** observada se encuentra dentro o muy cercana al rango intercuartílico de las redes simuladas, lo que indica que el modelo reproduce adecuadamente la proporción global de enlaces de las redes.
-
-+ En los cuatro gobiernos la **transitividad** y la **asortatividad** observada es considerablemente menor que la obtenida en las simulaciones. Esto indica que el modelo genera redes con una mayor tendencia al cierre triádico que la observada en los datos, es decir, sobreestima la formación de triángulos.
-
-+ La capacidad del modelo para reproducir la **distancia** es heterogénea entre gobiernos, ya que en algunos casos la red observada presenta valores inferiores a los simulados y en otros superiores. Hay una excepción con el gobierno de **Uribe** cuya obserbación se encuentra dentro del rango intercuartílico.
-
-### Modelos de sociabilidad con covariables {.tabset}
-
-#### Petro
-
-```{r box-petro, fig.cap="Comparación estadísticos en el modelo de sociabilidad con covariables para el gobierno de Petro", fig.height=14, fig.width=9, fig.align='center'}
-graficar_gof(
-    simulados = estadisticas_sim_ame[[1]],
-    observado = estadisticas_observadas[[1]],
-    titulo = names(redes_poder)[1]
-  )
-```
-
-#### Duque
-
-```{r box-duque, fig.cap="Comparación estadísticos en el modelo de sociabilidad con covariables para el gobierno de Duque", fig.height=14, fig.width=9, fig.align='center'}
-graficar_gof(
-    simulados = estadisticas_sim_ame[[2]],
-    observado = estadisticas_observadas[[2]],
-    titulo = names(redes_poder)[2]
-  )
-```
-
-#### Santos
-
-```{r box-santos, fig.cap="Comparación estadísticos en el modelo de sociabilidad con covariables para el gobierno de Santos", fig.height=14, fig.width=9, fig.align='center'}
-graficar_gof(
-    simulados = estadisticas_sim_ame[[3]],
-    observado = estadisticas_observadas[[3]],
-    titulo = names(redes_poder)[3]
-  )
-```
-
-#### Uribe
-
-```{r box-uribe, fig.cap="Comparación estadísticos en el modelo de sociabilidad con covariables para el gobierno de Uribe", fig.height=14, fig.width=9, fig.align='center'}
-graficar_gof(
-    simulados = estadisticas_sim_ame[[4]],
-    observado = estadisticas_observadas[[4]],
-    titulo = names(redes_poder)[4]
-  )
-```
-
-#### Discusión
-
-+ La capacidad del modelo para reproducir la **densidad** es heterogénea entre gobiernos, ya que en algunos casos la red observada presenta valores superiores y hay otros que estan dentro del rango intercuartílico indicando que en alguno casos (de acuerdo con las figuras \@ref(fig:box-uribe) y \@ref(fig:box-duque)) logra reproducir adecuadamente la proporción global de enlaces.
-
-+ En los cuatro gobiernos la **transitividad** y la **asortatividad** observada es considerablemente menor que la obtenida en las simulaciones. Esto indica que el modelo genera redes con una mayor tendencia al cierre triádico que la observada en los datos, es decir, sobreestima la formación de triángulos. Ocurre de manera similar con la **distancia** exceptuando el caso del gobierno de **Uribe** para el cual parece reproducir adecuadamente las distancias geodésicas.
-
-
-
-
-## g. Repita los numerales b., c. y d. para la red completa, sin filtrar por gobierno. {.tabset}
-
-### Visualizaicón decorada
+### Distribución del grado
 
 ```{r}
-datos_gob <- poder  %>% 
-  mutate(
-    partido_plot = case_when(
-      PARTIDO_POLITICO %in% c("PACTO HISTORICO", "PACTO HISTÓRICO") ~ "Pacto Histórico",
+d <- degree(graph = g)
+```
 
-      PARTIDO_POLITICO %in% c("CENTRO DEMOCRATICO", "CENTRO DEMOCRÁTICO") ~ "Centro Democrático",
+```{r distribucion-grado-mafia, fig.cap="Distribución del grado de la red"}
+# histograma
+plot(x = NA, 
+     y = NA, 
+     type = "n", 
+     xlim = c(0,35), 
+     ylim = c(0,0.5), 
+     xlab = "Grado", 
+     ylab = "Densidad", 
+     main = "")
+hist(d, freq = F, col = "gray90", border = "gray50", add = T, breaks = 25)
+title(main = "Distribución del grado", outer = T, line = -2)
+```
 
-      PARTIDO_POLITICO %in% c("PARTIDO LIBERAL",
-                              "PARTIDO LIBERAL COLOMBIANO") ~ "Liberal",
+### Distribución de las distancias geodésicas
 
-      PARTIDO_POLITICO %in% c("PARTIDO CONSERVADOR",
-                              "PARTIDO CONSERVADOR COLOMBIANO") ~ "Conservador",
+```{r}
+d <- distances(graph = g)
+```
 
-      PARTIDO_POLITICO %in% c("PARTIDO DE LA U",
-                              "PARTIDO SOCIAL DE UNIDAD NACIONAL") ~ "Partido de la U",
+```{r distribucion-distancias-mafia, fig.cap="Distribución de las distancias geodésicas de la red"}
+# histograma
+plot(x = NA, 
+     y = NA, 
+     type = "n", 
+     xlim = c(0,15), 
+     ylim = c(0,0.7), 
+     xlab = "Grado", 
+     ylab = "Densidad", 
+     main = "")
+hist(d, freq = F, col = "gray90", border = "gray50", add = T, breaks = 25)
+title(main = "Distribución de las distancias geodésicas", outer = T, line = -2)
+```
 
-      PARTIDO_POLITICO %in% c("CAMBIO RADICAL") ~ "Cambio Radical",
+### Conectividad
 
-      TRUE ~ "Otros"
-    )
-  )
-
-  nombres <- poder[[1]]
-
-  A <- datos_gob %>% 
-    select(all_of(entidades)) %>%
-    mutate(across(everything(), as.numeric)) %>%
-    as.matrix()
-
-  rownames(A) <- nombres
-
-  W <- A %*% t(A)
-
-  Y_poder <- ifelse(W > 0, 1, 0)
-
-  diag(Y_poder) <- 0
-
-
-g_poder <- graph_from_adjacency_matrix(
-    Y_poder,
-    mode = "undirected",
-    diag = FALSE
-  )
-
-  V(g_poder)$nombre <- datos_gob[[1]]
-  V(g_poder)$partido <- datos_gob$partido_plot
-  V(g_poder)$genero <- datos_gob$GENERO
-  V(g_poder)$edad <- datos_gob$EDAD
-  V(g_poder)$grado <- degree(g_poder)
+```{r 3b-conectividad-mafia, echo=FALSE}
+tabla.3bconectividad <- data.frame(Medidas=c(
+  "¿Está conectado", 
+  "Conectividad nodal", 
+  "Conectividad por aristas", 
+  "Puntos de artículación"
+),
+Valores=c(is_connected(g),
+             vertex_connectivity(g),
+             edge_connectivity(g),
+             paste(names(articulation_points(g)),
+                   collapse = ";")))
 
 ```
 
-```{r red-completa, eval=FALSE, fig.height=15, include=FALSE}
-ggraph(g_poder, layout = "fr") +
-
-    geom_edge_link(
-      alpha = .25,
-      colour = "grey70"
-    ) +
-
-    geom_node_point(
-      aes(
-        colour = genero,
-        shape = partido,
-        size = grado
-      )
-    ) + scale_shape_manual(
-  values = c(
-    "Pacto Histórico" = 16,      # círculo
-    "Centro Democrático" = 17,   # triángulo
-    "Partido de la U" = 15,      # cuadrado
-    "Liberal" = 18,              # rombo
-    "Conservador" = 8,           # estrella
-    "Cambio Radical" = 3,        # cruz
-    "Otros" = 7                  # cuadrado con cruz
-  )
-) + guides(
-  shape = guide_legend(nrow = 3, direction = "vertical"),
-  colour = guide_legend(nrow = 2, direction = "vertical"),
-  size=guide_legend(direction = "vertical") ) +
-
-    labs(title = "Red completa") +
-
-    theme_minimal() +
-
-    theme(
-      legend.position = "bottom"
-    )
+```{r tabla-conectividad-mafia, tab.cap='Comparación de métricas de conectividad'}
+tabla.3bconectividad %>% 
+  kableExtra::kbl(caption = 'Métricas de conectividad',
+                    digits = 3) %>% 
+  kableExtra::kable_minimal()
 ```
 
-+ La visualización de la red permite observar que la mayoría de los actores se concentran en un componente principal, mientras que existen algunos nodos y pequeños grupos ubicados en la periferia. Asimismo, se aprecia una mayor proporción de hombres (azul) que de mujeres (rosa), lo que refleja un predominio masculino entre los integrantes de la red.
+### Clanes
 
-+ Aunque los nodos correspondientes a mujeres son menos numerosos, no se observa visualmente que conformen una comunidad claramente diferenciada, sino que se encuentran distribuidos en distintas regiones de la red.
+Para la elaboración del gráfico se tuvo ne cuenta la familia a la cual pertenecía o estaba relacionado, mientras que l profesiones y datos faltantes se consideraron como *sin clan*.
 
-+ En cuanto a la afiliación partidista, visualmente se observa una presencia importante de nodos correspondientes al Partido Conservador (estrella), especialmente en la zona central de la red. No obstante, no se evidencian agrupamientos claramente definidos por partido político, ya que las distintas formas aparecen mezcladas a lo largo del componente principal.
+```{r}
+V(g)$size <- rescale(
+  degree(g),
+  to = c(6, 20)
+)
+
+clanes <- unique(V(g)$clan)
+
+cols <- setNames(
+  rainbow(length(clanes)),
+  clanes
+)
+
+## opcional: que los no afiliados sean grises
+cols["Sin clan"] <- "gray80"
+
+V(g)$color <- cols[V(g)$clan]
+
+set.seed(1101)
+
+lay <- layout_with_fr(g)
+```
+
+```{r mafia-clanes, fig.cap="Red de relaciones coloreada por clan"}
+plot(
+  g,
+  layout = lay,
+  vertex.size = V(g)$size,
+  vertex.color = V(g)$color,
+  vertex.label = NA,
+  edge.color = adjustcolor("gray60", alpha.f = 0.4),
+  edge.arrow.size = 0.2,
+  main = "Red de relaciones coloreada por clan"
+)
+
+legend(
+  "topleft",
+  legend = names(cols),
+  col = cols,
+  pch = 19,
+  pt.cex = 1.5,
+  bty = "n",
+  title = "Clan"
+)
+```
+
+## c. Evaluar la importancia estructural de los nodos mediante grado, fuerza y medidas de centralidad, estudiar la cohesion de la red a través de cliques, densidad y transitividad, y apoyar la interpretacion con visualizaciones adecuadas. {.tabset}
 
 ### Centralidad
 
-```{r 1g centralidad, echo=FALSE}
+```{r 3c centralidad, echo=FALSE}
 # medidas de centralidad
-dc <- degree(g_poder, normalized = T)
-cc <- closeness(g_poder, normalized = T)
-bc <- betweenness(g_poder, normalized = T)
-ec <- eigen_centrality(g_poder)$vector
+dc <- degree(g, normalized = T)
+cc <- closeness(g, normalized = T)
+bc <- betweenness(g, normalized = T)
+ec <- eigen_centrality(g)$vector
 medidas_1gcentralidad <- data.frame(
   'Medidas/Departamento'= c('Grado','Cercania','Intermediacion','Propio'),
   Media=c(mean(dc),mean(cc, na.rm = T),mean(bc), mean(ec)),
@@ -1526,7 +380,7 @@ names(medidas_1gcentralidad) <- c('Medidas',
                                  'Media','Desviacion Estandar')
 ```
 
-```{r centralidad-red-completa, tab.cap="Medidas de centralidad para toda la red "}
+```{r centralidad-mafia, tab.cap="Medidas de centralidad"}
 medidas_1gcentralidad %>% 
   kableExtra::kbl(
     caption = "Resultados",
@@ -1535,50 +389,13 @@ medidas_1gcentralidad %>%
   kableExtra::kable_minimal()
 ```
 
-La red completa presenta un grado medio de 0.058, indicando que, en promedio, cada actor se encuentra conectado con una pequeña proporción del total de funcionarios. La cercanía promedio es de 0.341 y muestra una baja variabilidad (desviación estándar de 0.055), lo que sugiere que la capacidad de alcanzar al resto de los actores es relativamente homogénea entre los nodos de la red. Por su parte, la intermediación promedio continúa siendo baja (0.008), indicando que la mayoría de los funcionarios no actúa como puente entre otros actores. Finalmente, la centralidad de vector propio presenta la mayor variabilidad (media de 0.171 y desviación estándar de 0.222), lo que evidencia que unos pocos actores concentran una posición privilegiada al estar conectados con otros nodos altamente centrales, mientras que la mayoría posee valores reducidos de esta medida.
+### Cohesión
 
-### Análisis Local y estructural {.tabset}
-
-#### Distancia
-
-```{r 1c-distancia-poder, echo=FALSE}
-tabla1cdistancia <- data.frame(
-  'Medidas/departamento'=c("Orden",
-                           "Tamaño",
-                           "Orden de la componente gigante",
-                           "Diámetro del grafo",
-                           "Camino del diámetro",
-                           "distancia media"),
-  valor = c(vcount(g_poder),
-              ecount(g_poder),
-              max(components(g_poder)$csize),
-              diameter(g_poder,
-                       weights = NA),
-              paste0(names(get_diameter(g_poder,
-                                        weights = NA)),
-                     collapse = ";"),
-              round(mean_distance(g_poder, 
-                                  weights = NA,
-                                  directed = FALSE),3))
-                           )
-```
-
-```{r distancia-tabla-poder, tab.cap="Medidas de distancia para toda la red "}
-tabla1cdistancia %>% 
-  kableExtra::kbl(caption='Resultados', 
-                  digits=3) %>% 
-  kableExtra::kable_minimal()
-```
-
-A diferencia de las redes individuales por gobierno, la red completa es conexa, ya que la componente gigante incluye la totalidad de los 265 nodos. Además, el aumento en el tamaño de la red no implica un incremento importante en las distancias entre actores: la distancia media es de aproximadamente tres pasos y el diámetro permanece en siete, valores muy similares a los obtenidos para cada gobierno por separado. Esto sugiere que, al considerar conjuntamente todos los funcionarios, la red mantiene una estructura relativamente compacta, en la que los actores pueden alcanzarse mediante pocos intermediarios.
-
-#### Cohesión
-
-```{r 1c-cohesión-poder, message=FALSE, warning=FALSE}
+```{r 3c-cohesión-mafia, message=FALSE, warning=FALSE}
 tabla_cliques <- sapply(
-  X = seq_len(clique_num(g_poder)),
+  X = seq_len(clique_num(g)),
   FUN = \(k) {
-    count_max_cliques(g_poder, min = k, max = k)
+    count_max_cliques(g, min = k, max = k)
   }
 )
 
@@ -1592,14 +409,14 @@ tabla_cliques <- dplyr::filter(
   frecuencia != 0
 )
 
-clanes_maximales <- largest_cliques(g_poder)
+clanes_maximales <- largest_cliques(g)
 
 par(mfrow = c(1, 1), mar = c(1, 1, 3, 1))
 
 for (k in seq_along(clanes_maximales)) {
 
   clan_maximal <- induced_subgraph(
-    g_poder,
+    g,
     vids = clanes_maximales[[k]]
   )
 
@@ -1619,24 +436,24 @@ for (k in seq_along(clanes_maximales)) {
   )
 }
 
-comp <- components(g_poder)
+comp <- components(g)
 
 giant_id <- which(comp$membership == which.max(comp$csize))
 
 g_gc <- induced_subgraph(
-  g_poder,
+  g,
   giant_id
 )
 
 densidad2c <- data.frame(
   Red=c("Componente gigante","Red completa"),
-  Densidad = c(edge_density(g_gc),edge_density(g_poder))
+  Densidad = c(edge_density(g_gc),edge_density(g))
 )
 
 
 ```
 
-```{r cliques-poder, tab.cap="Cliques en la red completa de los gobiernos"}
+```{r cliques-mafia, tab.cap="Cliques en la red completa de los gobiernos"}
 tabla_cliques %>%
     kableExtra::kbl(
       caption = "Clanes y su Frecuencia para toda la red",
@@ -1646,9 +463,7 @@ tabla_cliques %>%
     kableExtra::kable_minimal()
 ```
 
-En la red completa se observa una mayor diversidad en el tamaño de los cliques maximales. Aunque predominan los cliques pequeños, especialmente de tres y cuatro actores, también se identifican grupos altamente cohesionados de gran tamaño, alcanzando hasta 23 actores. Esto indica que, al integrar los cuatro gobiernos en una única red, emergen comunidades más amplias cuyos miembros se encuentran completamente conectados entre sí.
-
-```{r tabla-densidad-poder, tab.cap="Densidad de las componentes gigantes de la red completa"}
+```{r tabla-densidad-mafia, tab.cap="Densidad de las componentes gigantes de la red completa"}
 densidad2c %>% 
   kableExtra::kbl(
     caption = "Densidad de las componentes gigantes de la red completa",
@@ -1657,40 +472,12 @@ densidad2c %>%
   kableExtra::kable_minimal()
 ```
 
-La densidad de la componente gigante coincide con la de la red completa (0.058), debido a que toda la red forma una única componente conexa. En términos generales, la red es relativamente dispersa, ya que solo alrededor del 5.8 % de las conexiones posibles están presentes. Sin embargo, esta baja densidad global no impide la existencia de cliques de gran tamaño, lo que evidencia la presencia de subgrupos altamente cohesionados dentro de una estructura general más dispersa.
-
-#### Conectividad
-
-```{r 1c-conectividad-poder, echo=FALSE}
-tabla.1cconectividad <- data.frame(Medidas=c(
-  "¿Está conectado", 
-  "Conectividad nodal", 
-  "Conectividad por aristas", 
-  "Puntos de artículación"
-),
-Valores=c(is_connected(g_poder),
-             vertex_connectivity(g_poder),
-             edge_connectivity(g_poder),
-             paste(names(articulation_points(g_poder)),
-                   collapse = ";")))
-
-```
-
-```{r tabla-conectividad-poder, tab.cap='Comparación de métricas de conectividad'}
-tabla.1cconectividad %>% 
-  kableExtra::kbl(caption = 'Métricas de conectividad',
-                    digits = 3) %>% 
-  kableExtra::kable_minimal()
-```
-
-A diferencia de las redes individuales por gobierno, la red completa es conexa, por lo que existe al menos un camino entre cualquier par de actores. En consecuencia, la conectividad nodal y la conectividad por aristas toman el valor de 1. Esto indica que la eliminación de un único nodo o de una única arista es suficiente para desconectar la red, por lo que, aunque la red está completamente conectada, presenta una baja robustez estructural frente a la pérdida de actores o vínculos clave.
-
-#### Agrupamiento
+### Transitividad
 
 ```{r message=FALSE, warning=FALSE}
 # Transitividad local
 tabla_1c_transitividadg <- transitivity(
-  graph = g_poder,
+  graph = g,
   type = "local"
 )
 
@@ -1698,7 +485,7 @@ tabla_1c_transitividadg[is.nan(tabla_1c_transitividadg)] <- NA
 
 # Transitividad global
 trans_global <- transitivity(
-  graph = g_poder,
+  graph = g,
   type = "global"
 )
 
@@ -1742,88 +529,160 @@ grafico_transitividad <-
 
 ```
 
-```{r mosaico-tl-poder, fig.cap="Distribución de la transitividad local en la red completa", fig.height=9, fig.width=7, message=FALSE, warning=FALSE}
+```{r tl-mafia, fig.cap="Distribución de la transitividad local en la red completa", fig.height=9, fig.width=7, message=FALSE, warning=FALSE}
 grafico_transitividad
 ```
 
-La red completa presenta una transitividad global de 0.659, lo que indica una elevada tendencia a la formación de triángulos y, por tanto, de grupos de actores cuyos vecinos también se encuentran conectados entre sí. Asimismo, la distribución de la transitividad local presenta un sesgo hacia la izquierda, evidenciando que la mayoría de los nodos posee coeficientes de transitividad relativamente altos, mientras que son pocos los actores con valores bajos. Esto sugiere que el agrupamiento local es una característica predominante de la red.
+## d. Aplicar y comparar métodos de deteccion de comunidades, evaluar la modularidad de las particiones, analizar la asortatividad por grado y por clan si corresponde, contrastar las comunidades detectadas con los clanes conocidos y visualizar la particion más adecuada.
 
-```{r 1c-clusters-poder, echo=FALSE, message=FALSE, warning=FALSE}
+Para este inciso se decidió usar la versión no dirigida (*G*) para poder comparar varios métodos de cluster.
+
+```{r 3d-clusters-mafia, echo=FALSE, message=FALSE, warning=FALSE}
 
 clusters_lista <- list(
-  kc = cluster_fast_greedy,
-  clb = cluster_edge_betweenness,
-  cw = cluster_walktrap,
-  ci = cluster_infomap
+  FastGreedy = \(x)
+    cluster_fast_greedy(
+      x,
+      weights = E(x)$weight
+    ),
+
+  Walktrap = \(x)
+    cluster_walktrap(
+      x,
+      weights = E(x)$weight
+    ),
+
+  Leiden = \(x)
+    cluster_leiden(
+      x,
+      weights = E(x)$weight
+    ),
+
+  LabelPropagation = \(x)
+    cluster_label_prop(
+      x,
+      weights = E(x)$weight
+    )
 )
 
 # Ejecutar todos los algoritmos
 clusters_coords <- lapply(
   clusters_lista,
-  \(f) f(g_poder)
+  \(f) f(G)
 )
 
 # Layout
 set.seed(831)
-layout_kk <- layout_with_kk(g_poder)
+layout_kk <- layout_with_kk(G)
 
-# Elegir el clustering con mayor modularidad
-mods <- sapply(clusters_coords, modularity)
+tabla_clusters <- data.frame(
+  Algoritmo = names(clusters_coords),
+  Comunidades = sapply(
+    clusters_coords,
+    \(x) length(sizes(x))
+  ),
+  Modularidad = sapply(
+    clusters_coords,
+    \(x)
+      igraph::modularity(
+        G,
+        membership = membership(x),
+        weights = E(G)$weight
+      )
+  )
+)
+
+
+```
+
+```{r clusters-mafia, tab.cap="Modularidad de los algoritmos con respecto a las familias (clanes)"}
+tabla_clusters  %>% 
+  kableExtra::kbl(
+    caption = "Modularidad de los algoritmos con respecto a las familias (clanes)",
+    digits = 3
+  ) %>% 
+  kableExtra::kable_minimal()
+```
+
+```{r}
+
+mods <- tabla_clusters$Modularidad
 
 validacion2dclusters <- clusters_coords[[which.max(mods)]]
 
-par(mfrow = c(1, 2), oma = c(0, 0, 3, 0))
+V(G)$clan <- str_extract(
+  V(G)$role,
+  "(?<=family '').*?(?='')"
+)
 
+V(G)$clan[is.na(V(G)$clan)] <- "Sin clan"
+
+```
+
+```{r conteo-comunidades-mafia, tab.cap="Frecuencia entre comunidades y familias (clanes)"}
+table(
+  Clan = V(G)$clan,
+  Comunidad = membership(validacion2dclusters)
+) %>% 
+  kableExtra::kbl(
+    caption = "Frecuencia entre comunidades y familias (clanes)",
+    digits = 3
+  ) %>% 
+  kableExtra::kable_minimal()
+
+
+```
+
+```{r}
+mejor_algoritmo <- tabla_clusters$Algoritmo[
+  which.max(tabla_clusters$Modularidad)
+]
 ord <- order(
   sizes(validacion2dclusters),
   decreasing = TRUE
 )[1:min(10, length(sizes(validacion2dclusters)))]
+```
+
+```{r cluster-mafia, fig.cap="Visualización del mejor cluster de acuerdo a modularidad"}
+# Colores usados por igraph
+cols <- rainbow(length(sizes(validacion2dclusters)))
+
+par(
+  mfrow = c(1, 2),
+  mar = c(1, 1, 3, 1)
+)
 
 plot(
   validacion2dclusters,
-  g_poder,
+  G,
   layout = layout_kk,
   vertex.size = 12,
-  vertex.label = NA
+  vertex.label = NA,
+  main = paste(
+    "Mejor algoritmo:",
+    mejor_algoritmo,
+    "\nModularidad =",
+    round(max(tabla_clusters$Modularidad), 3)
+  )
 )
 
 plot.new()
 
 legend(
   "center",
-  legend = c(
-    "Top 10 clusters:",
-    paste0(
-      " - Cluster ",
-      ord,
-      " (n = ",
-      sizes(validacion2dclusters)[ord],
-      ")"
-    )
+  legend = paste0(
+    "Comunidad ",
+    ord,
+    " (n = ",
+    sizes(validacion2dclusters)[ord],
+    ")"
   ),
-  col = c(
-    NA,
-    rainbow(length(sizes(validacion2dclusters)))[ord]
-  ),
-  pch = c(
-    NA,
-    rep(19, length(ord))
-  ),
+  col = cols[ord],
+  pch = 19,
   pt.cex = 1.5,
-  bty = "n"
+  bty = "n",
+  title = "Comunidades"
 )
-
-mtext(
-  paste(
-    "Clustering mediante",
-    validacion2dclusters$algorithm
-  ),
-  outer = TRUE,
-  side = 3,
-  line = 1.5,
-  cex = 1.1
-)
-
 ```
 
-En cuanto a la detección de comunidades, el algoritmo basado en betweenness obtuvo el mayor valor de modularidad, por lo que fue el método que mejor identificó la estructura comunitaria de la red completa entre los algoritmos evaluados.
+## e. Ajustar los modelos considerados previamente incorporando la informacion nodal relevante cuando sea pertinente, presentar e interpretar sus resultados mediante tablas y gráficos, evaluar su bondad de ajuste con base en densidad, transitividad, asortatividad y distancia geodésica promedio, y comparar su capacidad predictiva mediante validacion cruzada de 5 particiones. Las secciones de bondad de ajuste y capacidad predictiva deben tener una extension máxima de 1000 palabras cada una.

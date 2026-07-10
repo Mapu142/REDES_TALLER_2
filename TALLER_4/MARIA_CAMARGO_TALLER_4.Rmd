@@ -663,6 +663,8 @@ En cuanto a la detección de comunidades, el algoritmo Infomap obtuvo los mayore
 
 ## e. Ajuste, de manera independiente para cada red, un modelo de bloques estocásticos, un modelo de grafos aleatorios exponenciales y un modelo de socialidad con covariables. En el caso del modelo de grafos aleatorios exponenciales, incluya como términos del predictor lineal el número de aristas y las covariables con efectos homofílicos. Para el modelo de socialidad, incorpore también covariables con efectos homofílicos. Presente todos los resultados de forma estratégica, de modo que se facilite la comparacion entre gobiernos y se identifiquen diferencias relevantes en la estructura de las redes de poder. Finalmente, interprete los resultados de manera profunda, pero concisa, destacando sus posibles implicaciones políticas. {.tabset}
 
+El análisis esta dentro de cada pestaña.
+
 ```{r include=FALSE}
 # bloques estocasticos
 sbm_modelos <- lapply(
@@ -1059,6 +1061,8 @@ En general, los modelos de sociabilidad evidencian que la formación de vínculo
 
 ## f. Evalúe la bondad de ajuste de los modelos ajustados en el numeral anterior utilizando como estadísticos de prueba la densidad, la transitividad, la asortatividad y la distancia geodésica promedio. Presente los resultados en tablas y gráficos, interpretando detalladamente los hallazgos, identificando qué modelos capturan mejor las propiedades observadas en la red y limitando el análisis a un máximo de 1000 palabras. {.tabset}
 
+Por cada Modelo hay una pestaña denominada **Discusión** donde se encuentra el análisis respectivo.
+
 ```{r}
 estadisticas_red <- function(g){
 
@@ -1409,6 +1413,8 @@ graficar_gof(
 
 ## g. Repita los numerales b., c. y d. para la red completa, sin filtrar por gobierno. {.tabset}
 
+En cada pestaña se encuentra el respectivo análisis.
+
 ### Visualizaicón decorada
 
 ```{r}
@@ -1464,7 +1470,7 @@ g_poder <- graph_from_adjacency_matrix(
 
 ```
 
-```{r red-completa, eval=FALSE, fig.height=15, include=FALSE}
+```{r red-completa, fig.height=15}
 ggraph(g_poder, layout = "fr") +
 
     geom_edge_link(
@@ -1828,6 +1834,105 @@ mtext(
 
 En cuanto a la detección de comunidades, el algoritmo basado en betweenness obtuvo el mayor valor de modularidad, por lo que fue el método que mejor identificó la estructura comunitaria de la red completa entre los algoritmos evaluados.
 
+```{r include=FALSE}
+# bloques estocasticos
+
+
+extraer_sbm <- function(modelo){
+
+  k_opt <- which.max(modelo$ICL)
+
+  Z <- modelo$memberships[[k_opt]]$Z
+
+  grupos <- max.col(Z)
+
+  data.frame(
+
+    k_optimo = k_opt,
+
+    "tamaños" = paste(table(grupos), collapse = ", "),
+
+    ICL = modelo$ICL[k_opt],
+
+    PL = modelo$PL[k_opt]
+
+  )
+
+}
+
+
+
+extraer_pi <- function(modelo){
+
+  k_opt <- which.max(modelo$ICL)
+
+  pi <- modelo$model_parameters[[k_opt]]$pi
+
+  as.data.frame(as.table(pi))
+
+}
+
+
+
+
+# ergm 
+
+
+extraer_ergm <- function(modelo){
+
+  s <- summary(modelo)
+
+  coefs <- s$coefficients
+
+  data.frame(
+    termino = rownames(coefs),
+    estimacion = coefs[, "Estimate"],
+    error_std = coefs[, "Std. Error"],
+    estadistico = coefs[, "z value"],
+    p = coefs[, "Pr(>|z|)"],
+    row.names = NULL
+  )
+
+}
+
+
+
+
+# sociabilidad
+
+extraer_ame <- function(modelo){
+
+  beta <- modelo$BETA
+
+  nombres <- c(
+    "Intercepto",
+    "Homofilia: Partido",
+    "Homofilia: Género",
+    "Homofilia: Carrera",
+    "Homofilia: Universidad",
+    "Homofilia: Nivel de estudios",
+    "Homofilia: Predecesores",
+    "Edad (|Δ| ≤ 5 años)"
+  )
+
+  data.frame(
+    termino = nombres,
+    media = colMeans(beta),
+    sd = apply(beta, 2, sd),
+    li95 = apply(beta, 2, quantile, 0.025),
+    ls95 = apply(beta, 2, quantile, 0.975),
+    row.names = NULL
+  )
+
+}
+
+
+
+
+
+
+```
+
 # Estructuras sociales cognitivas
 
 El trabajo de David Krackhardt en la década de 1980 fue pionero en la identificacion de individuos con habilidades para percibir la estructura social en la que están inmersos. Para ello, recopilo datos relacionales sobre la estructura social cognitiva (Cognitive Social Structure, CSS, por sus siglas en inglés) de 21 miembros del personal administrativo de una empresa de fabricacion de maquinaria de alta tecnología, Silicon Systems. El objetivo era evaluar los efectos de un programa reciente de intervencion administrativa. Una de las relaciones estudiadas fue la amistad, donde cada persona no solo reporto sus relaciones de amistad, sino también las relaciones percibidas entre todos los demás empleados. Esto permitio construir una matriz de adyacencia de tamaño $21\times21$ que reflejaba las percepciones de cada individuo dentro del grupo. Este enfoque ha sido utilizado con éxito en estudios posteriores mediante modelos triádicos (e.g., Sosa y Rodríguez 2021).
@@ -1844,6 +1949,8 @@ La red de consenso de una CSS se define como la red cuya matriz de adyacencia, d
 Este enfoque permite sintetizar las percepciones individuales en una única red que refleja el consenso del sistema social en cuestion.
 
 ## a.Realice visualizaciones no decoradas en un diseño circular para representar todas las percepciones individuales y la red de consenso. Compare las diferencias entre las percepciones individuales y entre estas y la red de consenso, identificando posibles discrepancias o patrones consistentes. Use tantas tablas y gráficos como sean necesarios para apoyar el análisis. Interprete los resultados obtenidos, evaluando la coherencia entre las percepciones y la capacidad del consenso para capturar el panorama general del sistema social, limitando el análisis a un máximo de 1000 palabras. {.tabset}
+
+El análsis se encuentra en el siguiente numeral denominado **Discusión**.
 
 ### Actor 1 y 2.
 
@@ -2241,6 +2348,8 @@ La comparación entre las percepciones individuales y la red de consenso evidenc
 
 ## b. Realice un análisis descriptivo detallado de la red de consenso, destacando sus propiedades estructurales y métricas clave como densidad, transitividad, distribucion de grados, entre otras. Utilice tablas y gráficos según sea necesario para presentar la informacion de manera clara y organizada. Interprete los resultados obtenidos, destacando los patrones relevantes y su implicacion en el contexto del estudio, limitando el análisis a un máximo de 1000 palabras. {.tabset}
 
+El análisis se encuentra en el siguiente numeral denominado **Discusión**.
+
 ### Tabla comparativa
 
 ```{r tabla_comparativa, message=FALSE, warning=FALSE, include=FALSE}
@@ -2397,7 +2506,9 @@ red_consenso <- asNetwork(grafos21[[22]])
 ergmconsenso <- ergm(red_consenso ~
         edges +
         nodematch("nivel") +
-        nodematch("departamento") 
+        nodematch("departamento") +
+        absdiff("edad") +
+        absdiff("tenencia") 
     )
 tabla_ergm <- summary(ergmconsenso)$coefficients  %>% 
   as.data.frame() %>% 
@@ -2419,16 +2530,29 @@ tabla_ergm <- summary(ergmconsenso)$coefficients  %>%
 
 ```{r tabla-ergm, tab.cap="Resultados del modelo ERGM para la red de consenso"}
 tabla_ergm %>% 
-  kbl(
+  kableExtra::kbl(
     caption = "Resultados del modelo ERGM para la red de consenso",
     align = c("l", "c", "c", "c", "c"),
     booktabs = TRUE
   ) %>% 
-  kable_styling(
+  kableExtra::kable_styling(
     full_width = FALSE,
     bootstrap_options = c("striped", "hover")
+  ) %>%
+  kableExtra::row_spec(
+    c(2,3,4,5),
+    color = "#7f8c8d",
+    italic = TRUE
+  ) %>%
+  kableExtra::row_spec(
+    c(1,3),
+    bold = TRUE,
+    background = "#CF2F40",
+    color = "white"
   )
 ```
+
+El modelo ERGM muestra que la pertenencia al mismo departamento constituye el único atributo nodal asociado significativamente con la formación de vínculos de consenso (β=1.811, p<0.001). Esto indica que, controlando por las demás variables del modelo, los actores pertenecientes al mismo departamento presentan una mayor propensión a establecer relaciones de consenso que aquellos de departamentos diferentes. En contraste, el nivel, la diferencia de edad y la diferencia en la tenencia no muestran evidencia de influir en la probabilidad de formación de enlaces.
 
 ## e. Considere los siguientes modelos (sin covariables) para ajustarlos a la red de consenso: {.tabset}
 
@@ -2441,9 +2565,9 @@ tabla_ergm %>%
 
 Ajuste cada uno de estos modelos y utilice tablas y visualizaciones según sea necesario para mostrar los resultados. Interprete detalladamente los hallazgos de cada modelo, sin límite de palabras para esta seccion, destacando las fortalezas y limitaciones de cada enfoque.
 
-Nota: El modelo de sociabilidad se encuentra disponible en <https://rpubs.com/jstats1702/1430765> (este modelo lo publicaron en 2026 Sosa y Martínez en <https://www.tandfonline.com/doi/full/10.1080/10618600.2026.2627454>).
+**Nota:** El análisis se encuentra en cada pestaña correspondiente a su modelo ya sea directamente o en una subpestaña denominada **Discusión**
 
-```{r}
+```{r include=FALSE}
 m1 <- ergm(
   red_consenso ~ edges
 )
@@ -2453,10 +2577,19 @@ red_nda <- as_undirected(
   mode = "collapse"
 )
 
-grados <- degree(red_nda)
+in_deg <- degree(
+  grafos21[[22]],
+  mode = "in"
+)
+
+out_deg <- degree(
+  grafos21[[22]],
+  mode = "out"
+)
 
 m2 <- sample_degseq(
-  out.deg = grados,
+  out.deg = out_deg,
+  in.deg = in_deg,
   method = "configuration"
 )
 
@@ -2707,8 +2840,8 @@ A <- as.matrix(
   )
 )
 
-a_sigma <- 0.01
-b_sigma <- 0.01
+a_sigma <- 2
+b_sigma <- 1
 
 a_tau <- 0.01
 b_tau <- 0.01
@@ -2753,16 +2886,18 @@ tabla_ergm <- summary(m1)$coefficients  %>%
 
 ```{r tabla-ergm2, tab.cap="Resultados del modelo ERGM para la red de consenso"}
 tabla_ergm %>% 
-  kbl(
+  kableExtra::kbl(
     caption = "Resultados del modelo ERGM para la red de consenso",
     align = c("l", "c", "c", "c", "c"),
     booktabs = TRUE
   ) %>% 
-  kable_styling(
+  kableExtra::kable_styling(
     full_width = FALSE,
     bootstrap_options = c("striped", "hover")
   )
 ```
+
+El modelo nulo indica que la red presenta una baja propensión general a la formación de enlaces, como lo evidencia el coeficiente negativo y estadísticamente significativo del término edges. Esto refleja que, en ausencia de otros efectos, la red es relativamente dispersa y la probabilidad de que exista un vínculo entre dos actores es baja.
 
 ### Modelo de grafos aleatorios generalizado {.tabset}
 
@@ -2785,12 +2920,13 @@ tabla_m2 <- data.frame(Medida=c("Nodos",
 
 ```{r tabla, tab.cap="Resultados del modelo de grafos aleatorios generalizado para la red de consenso"}
 tabla_m2 %>% 
-  kbl(
+  kableExtra::kbl(
     caption = "Resultados del modelo de grafos aleatorios generalizado para la red de consenso",
     align = c("l", "c", "c", "c", "c"),
-    booktabs = TRUE
+    booktabs = TRUE, 
+    digits = 3
   ) %>% 
-  kable_styling(
+  kableExtra::kable_styling(
     full_width = FALSE,
     bootstrap_options = c("striped", "hover")
   )
@@ -2800,27 +2936,29 @@ tabla_m2 %>%
 
 ```{r}
 par(mfrow=c(1,2))
-plot(x = NA, 
-     y = NA, 
-     type = "n", 
-     xlim = c(0,12), 
-     ylim = c(0,0.5), 
-     xlab = "Grado", 
-     ylab = "Densidad", 
-     main = "")
-hist(degree(grafos21[[22]]), freq = F, col = "gray90", border = "gray50", add = T, breaks=10)
-title(main = "Distribución del grado de la red de consenso", outer = T, line = -2)
-plot(x = NA, 
-     y = NA, 
-     type = "n", 
-     xlim = c(0,12), 
-     ylim = c(0,0.5), 
-     xlab = "Grado", 
-     ylab = "Densidad", 
-     main = "")
-hist(degree(m2), freq = F, col = "gray90", border = "gray50", add = T, breaks=10)
-title(main = "Distribución del grado del modelo", outer = T, line = -2)
+plot(grafos21[[22]], 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main='Red de Consenso')
+plot(m2, 
+       layout=circle,
+       vertex.size = 25,
+       vertex.label.color = "black",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main='Modelo')
 ```
+
+
+#### Discusión
+
+El modelo de configuración preserva la secuencia de grados, pero puede generar lazos y aristas múltiples. En consecuencia, aunque reproduce exactamente medidas como el número de aristas y la densidad, la estructura de la red simulada puede diferir de la observada.
+
 
 ### Modelo de grafos aleatorios exponencial con número de aristas y triángulos
 
@@ -2845,16 +2983,18 @@ tabla_ergm <- summary(m3)$coefficients  %>%
 
 ```{r tabla-ergm3, tab.cap="Resultados por estimación MPLE"}
 tabla_ergm %>% 
-  kbl(
+  kableExtra::kbl(
     caption = "Resultados del modelo ERGM con número de aristas y triángulos para la red de consenso",
     align = c("l", "c", "c", "c", "c"),
     booktabs = TRUE
   ) %>% 
-  kable_styling(
+  kableExtra::kable_styling(
     full_width = FALSE,
     bootstrap_options = c("striped", "hover")
   )
 ```
+
+El coeficiente negativo y significativo del término edges indica que la red presenta una baja propensión general a la formación de enlaces, lo que es consistente con una estructura relativamente dispersa. Sin embargo, el coeficiente positivo y significativo del término triangle evidencia una tendencia al cierre triádico, indicando que, cuando dos actores comparten un vecino en común, aumenta la probabilidad de que también establezcan un vínculo entre sí. En consecuencia, aunque la red no es densa, los enlaces existentes muestran una tendencia a organizarse en triángulos.
 
 ### Modelo de bloques estocásticos {.tabset}
 
@@ -2862,12 +3002,13 @@ tabla_ergm %>%
 
 ```{r bs-consenso, tab.cap="Resultados del modelo de bloques estocásticos para la red de consenso"}
 extraer_sbm(modelo = m4) %>% 
-  kbl(
+  dplyr::select(-PL) %>% 
+  kableExtra::kbl(
     caption = "Resultados del modelo de bloques estocásticos para la red de consenso",
     align = c("l", "c", "c", "c", "c"),
     booktabs = TRUE
   ) %>% 
-  kable_styling(
+  kableExtra::kable_styling(
     full_width = FALSE,
     bootstrap_options = c("striped", "hover")
   )
@@ -2902,6 +3043,11 @@ plot(
   main = "Modelo de bloques estocásticos"
 )
 ```
+
+
+#### Discusión
+
+El modelo de bloques estocásticos identificó una estructura compuesta por dos comunidades (k=2, en la tabla \@ref(tab:bs-consenso)), conformadas por 10 y 11 nodos, respectivamente. La similitud en el tamaño de los bloques sugiere una partición relativamente equilibrada de la red, sin la presencia de comunidades claramente dominantes. Asimismo, la representación gráfica ( figura \@ref(fig:red-bloques)) evidencia que los nodos de cada bloque tienden a agruparse espacialmente y presentan una mayor concentración de conexiones dentro de su propia comunidad que entre comunidades, aunque existen algunos enlaces que actúan como puente entre ambos grupos.
 
 ### Modelo latente de distancia clásico con dos dimensiones latentes {.tabset}
 
@@ -2944,13 +3090,15 @@ tabla_latente  %>%
 
 #### Visualización
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 plot(m5)
 ```
 
-### Modelo de sociabilidad {.tabset}
+#### Discusión
 
-#### Tabla
+En conjunto, el modelo latente de distancia evidencia que la proximidad en un espacio bidimensional permite representar adecuadamente la estructura de la red. Además, la presencia de dos agrupaciones principales es consistente con la partición obtenida mediante el modelo de bloques estocásticos, lo que sugiere que ambas metodologías capturan una organización similar de la red desde enfoques distintos: el SBM mediante comunidades discretas y el modelo latente mediante proximidad en un espacio continuo.
+
+### Modelo de sociabilidad 
 
 ```{r}
 tabla_sociabilidad <- tibble(
@@ -3013,32 +3161,26 @@ tabla_sociabilidad  %>%
   )
 ```
 
-#### traceplot de $\mu$
++ La media posterior del intercepto ($\mu=−1.205$) presenta un intervalo de credibilidad que no incluye el cero, indicando una baja propensión general a la formación de enlaces en la red.
 
-```{r}
-plot(m6$mu, type="l")
-```
-
-#### Histograma posterior
-
-```{r}
-hist(m6$mu)
-```
++ Los parámetros $\tau^2$ y $\sigma^2$ presentan un intervalo de credibilidad positivo, lo que indica la existencia de heterogeneidad en la sociabilidad de los actores. En otras palabras, algunos individuos presentan una mayor propensión que otros a establecer vínculos.
 
 ## Resumen
 
 | Modelo | Parámetros | Qué modela | Resultado principal |
 |-----------------|-----------------|-----------------|-----------------------|
-| **M1:**Modelo de grafos aleatorios | edges | Densidad |  |
-| **M2:**Modelo de grafos aleatorios generalizado | grado fijo | Secuencia de grados |  |
-| **M3:**Modelo de grafos aleatorios exponencial con número de aristas y triángulos | edges + triangle | Cierre triádico |  |
-| **M4:**Modelo de bloques estocásticos | SBM | Comunidades |  |
-| **M5:**Modelo latente de distancia clásico con dos dimensiones latentes | Latente | Distancias ocultas |  |
-| **M6:**Modelo de sociabilidad | Sociabilidad | Heterogeneidad nodal |  |
+| **M1:**Modelo de grafos aleatorios | edges | Densidad | Hay poca densidad |
+| **M2:**Modelo de grafos aleatorios generalizado | grado fijo | Secuencia de grados | El modelo preserva las características globales pero no replica la red exactamente igual. |
+| **M3:**Modelo de grafos aleatorios exponencial con número de aristas y triángulos | edges + triangle | Cierre triádico | Red poco densa, pero de las aristas que hay hay alta probabilidad de un cierre triádico |
+| **M4:**Modelo de bloques estocásticos | SBM | Comunidades |Hay dos comunidades principales de tamaño similar |
+| **M5:**Modelo latente de distancia clásico con dos dimensiones latentes | Latente | Distancias ocultas | Dos concentraciones principales de nodos similares a la estructura de bloques estocásticos |
+| **M6:**Modelo de sociabilidad | Sociabilidad | Heterogeneidad nodal | Baja propensión a la formación de enlaces y existencia de heterogenidad entre los actores |
 
 : Resumen modelos ajustados
 
-## f. Evalúe la bondad de ajuste de los modelos ajustados en el numeral anterior utilizando como estadísticos de prueba la densidad, la transitividad, la asortatividad y la distancia geodésica promedio. Presente los resultados en tablas y gráficos, interpretando detalladamente los hallazgos, identificando qué modelos capturan mejor las propiedades observadas en la red de consenso y limitando el análisis a un máximo de 1000 palabras.
+## f. Evalúe la bondad de ajuste de los modelos ajustados en el numeral anterior utilizando como estadísticos de prueba la densidad, la transitividad, la asortatividad y la distancia geodésica promedio. Presente los resultados en tablas y gráficos, interpretando detalladamente los hallazgos, identificando qué modelos capturan mejor las propiedades observadas en la red de consenso y limitando el análisis a un máximo de 1000 palabras. {.tabset}
+
+Cada pestaña contiene un análisis.
 
 ```{r}
 
@@ -3052,7 +3194,7 @@ estadisticas_red <- function(red){
     densidad = edge_density(red),
     transitividad = transitivity(red, type = "global"),
     asortatividad = assortativity_degree(red),
-    geodesica = mean_distance(red, directed = FALSE)
+    geodesica = mean_distance(red, directed = TRUE)
   )
 
 }
@@ -3081,7 +3223,7 @@ sim_m3 <- simulate(m3, nsim = 100)
 res_m3 <- purrr::map_dfr(
   sim_m3,
   estadisticas_red
-) |>
+) %>% 
   mutate(modelo="M3")
 
 P <- m4$prediction(2)
@@ -3204,7 +3346,9 @@ todos <- bind_rows(
 )
 ```
 
-```{r fig.height=15}
+### Densidad
+
+```{r densidad-ajuste, fig.height=15}
 ggplot(
   todos,
   aes(
@@ -3220,7 +3364,71 @@ geom_hline(
 )
 ```
 
+Excepto por el modelo de grados, los modelos considerados reproducen adecuadamente la densidad observada de la red. En particular, los modelos ERGM, de bloques estocásticos, latente y de sociabilidad generan redes con una densidad similar a la observada.
+
+### Transitividad
+
+```{r transitividad-ajuste, fig.height=15}
+ggplot(
+  todos,
+  aes(
+    x = modelo,
+    y = transitividad
+  )
+)+
+geom_boxplot()+
+geom_hline(
+  yintercept = obs$densidad,
+  colour="red",
+  linetype=2
+)
+```
+
+La transitividad es reproducida de manera heterogénea por los distintos modelos. Mientras que el modelo latente genera redes con un nivel de cierre triádico considerablemente superior al observado, los modelos de grados y de sociabilidad presentan valores más próximos a la red real.
+
+### Asortatividad
+
+```{r asortatividad-ajuste, fig.height=15}
+ggplot(
+  todos,
+  aes(
+    x = modelo,
+    y = asortatividad
+  )
+)+
+geom_boxplot()+
+geom_hline(
+  yintercept = obs$densidad,
+  colour="red",
+  linetype=2
+)
+```
+
+La asortatividad observada se encuentra comprendida dentro del rango de variación generado por la mayoría de los modelos, por lo que ninguno presenta una ventaja clara para reproducir esta propiedad.
+
+### Distancia geodésica
+
+```{r geodesica-ajuste, fig.height=15}
+ggplot(
+  todos,
+  aes(
+    x = modelo,
+    y = geodesica
+  )
+)+
+geom_boxplot()+
+geom_hline(
+  yintercept = obs$densidad,
+  colour="red",
+  linetype=2
+)
+```
+
+Ningún modelo reproduce correctamente esta medida.
+
 ## g. Compruebe la capacidad predictiva de los modelos ajustados en el numeral anterior mediante validacion cruzada con cinco (5 folds). Evalúe el rendimiento predictivo de cada modelo, utilizando tablas y gráficos para resumir los resultados. Interprete los hallazgos, destacando cuál modelo proporciona las mejores predicciones y por qué, limitando la interpretacion a un máximo de 1000 palabras.{.tabset}
+
+El análisis se encuentra en la pestaña denominada **Discusión**.
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 crear_folds <- function(
@@ -3398,7 +3606,7 @@ validacion_cruzada <- function(
       evaluar_prediccion(
         obs = test$y,
         prob = prob
-      ) |>
+      ) %>% 
 
       mutate(
         Fold = fold
@@ -3692,24 +3900,24 @@ cv_m6 <- validacion_cruzada(
 
 ```{r}
 cv_total <- bind_rows(
-  cv_m1 |> mutate(Modelo = "M1: Bernoulli"),
-  cv_m2 |> mutate(Modelo = "M2: Grados"),
-  cv_m3 |> mutate(Modelo = "M3: ERGM"),
-  cv_m4 |> mutate(Modelo = "M4: SBM"),
-  cv_m5 |> mutate(Modelo = "M5: Latente"),
-  cv_m6 |> mutate(Modelo = "M6: Sociabilidad")
+  cv_m1 %>%  mutate(Modelo = "M1: Bernoulli"),
+  cv_m2 %>%  mutate(Modelo = "M2: Grados"),
+  cv_m3 %>%  mutate(Modelo = "M3: ERGM"),
+  cv_m4 %>%  mutate(Modelo = "M4: SBM"),
+  cv_m5 %>%  mutate(Modelo = "M5: Latente"),
+  cv_m6 %>%  mutate(Modelo = "M6: Sociabilidad")
 )
 
 tabla_cv <-
-  cv_total |>
-  group_by(Modelo) |>
+  cv_total %>% 
+  group_by(Modelo) %>% 
   summarise(
     AUC_media = mean(AUC),
     AUC_sd = sd(AUC),
     Accuracy_media = mean(Accuracy),
     Accuracy_sd = sd(Accuracy),
     .groups = "drop"
-  ) |>
+  ) %>% 
   mutate(
     across(
       -Modelo,
@@ -3735,7 +3943,13 @@ tabla_cv %>%
     full_width = FALSE,
     position = "center"
   ) %>%
-  kableExtra::row_spec(0, bold = T)
+  kableExtra::row_spec(0, bold = T) %>%
+  kableExtra::row_spec(
+    c(5),
+    bold = TRUE,
+    background = "#CF2F40",
+    color = "white"
+  )
 ```
 
 ### Boxplot del AUC
@@ -3762,6 +3976,20 @@ ggplot(
     legend.position = "none"
   )
 ```
+
+### Discusión
+
++ M1 (Bernoulli): AUC = 0.50. No tiene capacidad discriminante; predice prácticamente al azar. Era esperable, ya que únicamente considera una probabilidad global de enlace.
+
++ M2 (Grados): AUC = 0.798. Con solo preservar la secuencia de grados, el modelo logra una capacidad predictiva aceptable. Esto sugiere que la heterogeneidad en el número de conexiones de los nodos explica una parte importante de la estructura de la red.
+
++ M3 (ERGM): AUC = 0.715. Mejor que el azar, aunque inferior al modelo de grados. Incorporar el cierre triádico aporta información, pero no alcanza el desempeño de otros modelos.
+
++ M4 (SBM): AUC = 0.769. El modelo de comunidades también presenta un buen desempeño predictivo, indicando que la organización en bloques ayuda a explicar la formación de enlaces.
+
++ M5 (Latente): AUC = 0.926, el mayor de todos. Es el modelo que mejor discrimina entre pares de nodos conectados y no conectados, lo que sugiere que la proximidad en el espacio latente representa muy bien la estructura de la red de consenso. 
+
++ M6 (Sociabilidad): AUC = 0.595. Apenas mejora al azar, indicando que la heterogeneidad en la sociabilidad por sí sola no es suficiente para explicar la formación de los enlaces.
 
 # Mafia
 
