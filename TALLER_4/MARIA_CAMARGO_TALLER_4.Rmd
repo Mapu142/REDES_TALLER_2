@@ -4378,7 +4378,7 @@ resumen %>%
 
 ### Visualización
 
-```{r visualizacion-mafia fig.height=12, fig.width=9}
+```{r visualizacion-mafia, fig.height=12, fig.width=9}
 set.seed(2105)
 
 plot(
@@ -4940,13 +4940,7 @@ m7 <- gibbs_sampler(
   n_burn = 10000,
   n_thin = 20
 )
-mu_hat <- mean(m6$mu)
 
-sigma2_hat <- mean(m6$sigma2)
-
-tau2_hat <- mean(m6$tau2)
-
-delta_hat <- colMeans(m6$delta)
 
 
 
@@ -5488,7 +5482,7 @@ todos <- bind_rows(
 
 ### Densidad
 
-```{r densidad-ajuste, fig.height=15}
+```{r densidad-ajuste-mafia, fig.height=15}
 ggplot(
   todos,
   aes(
@@ -5514,7 +5508,7 @@ El modelo de bloques estocásticos (M5), de espacio latente (M6) y sociabilidad 
 
 ### Transitividad
 
-```{r transitividad-ajuste, fig.height=15}
+```{r transitividad-ajuste-mafia, fig.height=15}
 ggplot(
   todos,
   aes(
@@ -5534,7 +5528,7 @@ geom_hline(
 
 ### Asortatividad
 
-```{r asortatividad-ajuste, fig.height=15}
+```{r asortatividad-ajuste-mafia, fig.height=15}
 ggplot(
   todos,
   aes(
@@ -5556,7 +5550,7 @@ geom_hline(
 
 ### Distancia geodésica
 
-```{r geodesica-ajuste, fig.height=15}
+```{r geodesica-ajuste-mafia, fig.height=15}
 ggplot(
   todos,
   aes(
@@ -6134,7 +6128,7 @@ tabla_cv <-
 
 ```
 
-```{r tabla-cv}
+```{r tabla-cv-mafia}
 tabla_cv %>% 
   kableExtra::kbl(caption = "Resultados de la validación cruzada de cinco folds",
     booktabs = TRUE,
@@ -6161,7 +6155,7 @@ tabla_cv %>%
 
 ### Boxplot del AUC
 
-```{r boxplot-auc, fig.cap= "Boxplot del área bajo la curva (AUC por sus siglas en inglés)"}
+```{r boxplot-auc-mafia, fig.cap= "Boxplot del área bajo la curva (AUC por sus siglas en inglés)"}
 ggplot(
   cv_total,
   aes(
