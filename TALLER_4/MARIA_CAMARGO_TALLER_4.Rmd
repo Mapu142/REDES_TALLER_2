@@ -3991,6 +3991,323 @@ ggplot(
 
 + M6 (Sociabilidad): AUC = 0.595. Apenas mejora al azar, indicando que la heterogeneidad en la sociabilidad por sí sola no es suficiente para explicar la formación de los enlaces.
 
+```{r include=FALSE}
+# bloques estocasticos
+
+
+extraer_sbm <- function(modelo){
+
+  k_opt <- which.max(modelo$ICL)
+
+  Z <- modelo$memberships[[k_opt]]$Z
+
+  grupos <- max.col(Z)
+
+  data.frame(
+
+    k_optimo = k_opt,
+
+    "tamaños" = paste(table(grupos), collapse = ", "),
+
+    ICL = modelo$ICL[k_opt],
+
+    PL = modelo$PL[k_opt]
+
+  )
+
+}
+
+
+
+extraer_pi <- function(modelo){
+
+  k_opt <- which.max(modelo$ICL)
+
+  pi <- modelo$model_parameters[[k_opt]]$pi
+
+  as.data.frame(as.table(pi))
+
+}
+
+
+
+
+# ergm 
+
+
+extraer_ergm <- function(modelo){
+
+  s <- summary(modelo)
+
+  coefs <- s$coefficients
+
+  data.frame(
+    termino = rownames(coefs),
+    estimacion = coefs[, "Estimate"],
+    error_std = coefs[, "Std. Error"],
+    estadistico = coefs[, "z value"],
+    p = coefs[, "Pr(>|z|)"],
+    row.names = NULL
+  )
+
+}
+
+
+
+
+# sociabilidad
+
+extraer_ame <- function(modelo){
+
+  beta <- modelo$BETA
+
+  nombres <- c(
+    "Intercepto",
+    "Homofilia: Partido",
+    "Homofilia: Género",
+    "Homofilia: Carrera",
+    "Homofilia: Universidad",
+    "Homofilia: Nivel de estudios",
+    "Homofilia: Predecesores",
+    "Edad (|Δ| ≤ 5 años)"
+  )
+
+  data.frame(
+    termino = nombres,
+    media = colMeans(beta),
+    sd = apply(beta, 2, sd),
+    li95 = apply(beta, 2, quantile, 0.025),
+    ls95 = apply(beta, 2, quantile, 0.975),
+    row.names = NULL
+  )
+
+}
+
+sample_z <- function(y, mu, delta, z) {
+
+  n <- nrow(y)
+
+  for (i in 1:(n - 1)) {
+    for (j in (i + 1):n) {
+
+      media <- mu + delta[i] + delta[j]
+
+      if (y[i, j] == 1) {
+
+        z[i, j] <- truncnorm::rtruncnorm(
+          1,
+          a = 0,
+          b = Inf,
+          mean = media,
+          sd = 1
+        )
+
+      } else {
+
+        z[i, j] <- truncnorm::rtruncnorm(
+          1,
+          a = -Inf,
+          b = 0,
+          mean = media,
+          sd = 1
+        )
+
+      }
+
+      z[j, i] <- z[i, j]
+
+    }
+  }
+
+  z
+}
+sample_mu <- function(z, delta, sigma2) {
+
+  v2_mu <- 1 / (1 / sigma2 + sum(upper.tri(z)))
+
+  m_mu <- v2_mu *
+    sum(
+      z[upper.tri(z)] -
+        delta[row(z)[upper.tri(z)]] -
+        delta[col(z)[upper.tri(z)]]
+    )
+
+  rnorm(
+    1,
+    mean = m_mu,
+    sd = sqrt(v2_mu)
+  )
+
+}
+sample_delta <- function(z, mu, tau2, delta) {
+
+  n <- nrow(z)
+
+  for (i in 1:n) {
+
+    vecinos <- setdiff(1:n, i)
+
+    v2_delta <- 1 / (1 / tau2 + length(vecinos))
+
+    m_delta <- v2_delta *
+      sum(
+        z[i, vecinos] -
+          mu -
+          delta[vecinos]
+      )
+
+    delta[i] <- rnorm(
+      1,
+      mean = m_delta,
+      sd = sqrt(v2_delta)
+    )
+
+  }
+
+  delta
+
+}
+sample_sigma2 <- function(mu) {
+
+  a_sigma_post <- a_sigma + 0.5
+
+  b_sigma_post <- b_sigma + 0.5 * mu^2
+
+  1 / rgamma(
+    1,
+    shape = a_sigma_post,
+    rate = b_sigma_post
+  )
+
+}
+sample_tau2 <- function(delta) {
+
+  n <- length(delta)
+
+  a_tau_post <- a_tau + n / 2
+
+  b_tau_post <- b_tau +
+    0.5 * sum(delta^2)
+
+  1 / rgamma(
+    1,
+    shape = a_tau_post,
+    rate = b_tau_post
+  )
+
+}
+gibbs_sampler <- function(
+    y,
+    n_iter = 30000,
+    n_burn = 10000,
+    n_thin = 20
+) {
+
+  n <- nrow(y)
+
+  ## Valores iniciales
+
+  mu <- 0
+
+  delta <- rnorm(n)
+
+  sigma2 <- 1
+
+  tau2 <- 1
+
+  z <- matrix(0, n, n)
+
+  ## Número de muestras
+
+  n_samples <- (n_iter - n_burn) / n_thin
+
+  ## Objetos para almacenar
+
+  samples <- list(
+
+    mu = numeric(n_samples),
+
+    delta = matrix(
+      0,
+      nrow = n_samples,
+      ncol = n
+    ),
+
+    sigma2 = numeric(n_samples),
+
+    tau2 = numeric(n_samples)
+
+  )
+
+  cat("Iniciando Gibbs...\n")
+
+  for (iter in 1:n_iter) {
+
+    z <- sample_z(
+      y,
+      mu,
+      delta,
+      z
+    )
+
+    mu <- sample_mu(
+      z,
+      delta,
+      sigma2
+    )
+
+    delta <- sample_delta(
+      z,
+      mu,
+      tau2,
+      delta
+    )
+
+    sigma2 <- sample_sigma2(mu)
+
+    tau2 <- sample_tau2(delta)
+
+    if (
+      iter > n_burn &&
+      (iter - n_burn) %% n_thin == 0
+    ) {
+
+      pos <- (iter - n_burn) / n_thin
+
+      samples$mu[pos] <- mu
+
+      samples$delta[pos, ] <- delta
+
+      samples$sigma2[pos] <- sigma2
+
+      samples$tau2[pos] <- tau2
+
+    }
+
+    if (iter %% (n_iter / 10) == 0) {
+
+      cat(
+        sprintf(
+          "Progreso: %.0f%%\n",
+          100 * iter / n_iter
+        )
+      )
+
+    }
+
+  }
+
+  cat("Finalizado.\n")
+
+  samples
+
+}
+
+
+
+
+```
+
 # Mafia
 
 El objetivo de este taller es analizar la estructura de una red social derivada de la orden de detencion preventiva emitida por el Tribunal de Messina en marzo de 2007, en el marco de la operacion anti mafia “Montagna”. La investigacion se centro en la familia “Mistretta” y el clan “Batanesi”, que infiltraron diversas actividades economicas entre 2003 y 2007. Los datos se encuentran en el archivo *mafia.RData*. La red representa individuos y relaciones asociadas con actividades ilícitas, donde los nodos corresponden a personas o entidades y los arcos a relaciones de influencia o interaccion. La red es dirigida y ponderada.
@@ -4061,7 +4378,7 @@ resumen %>%
 
 ### Visualización
 
-```{r fig.height=12, fig.width=9}
+```{r visualizacion-mafia fig.height=12, fig.width=9}
 set.seed(2105)
 
 plot(
@@ -4117,6 +4434,8 @@ hist(d, freq = F, col = "gray90", border = "gray50", add = T, breaks = 25)
 title(main = "Distribución del grado", outer = T, line = -2)
 ```
 
+Se observa una distribución de grados sesgada a la derecha, lo que indica que la mayoría de los nodos presentan un número reducido de conexiones, mientras que solo unos pocos concentran un número elevado de enlaces. Esto sugiere una estructura heterogénea en la conectividad de la red, donde algunos actores desempeñan un papel más central al mantener un mayor número de relaciones.
+
 ### Distribución de las distancias geodésicas
 
 ```{r}
@@ -4136,6 +4455,8 @@ plot(x = NA,
 hist(d, freq = F, col = "gray90", border = "gray50", add = T, breaks = 25)
 title(main = "Distribución de las distancias geodésicas", outer = T, line = -2)
 ```
+
+La distribución de las distancias geodésicas también presenta un sesgo hacia la derecha, aunque menos pronunciado que el observado en la distribución de grados. La mayor concentración de distancias se encuentra alrededor de cuatro pasos, lo que indica que, en promedio, cualquier par de nodos puede conectarse a través de un número relativamente pequeño de intermediarios. Esto sugiere que la red mantiene una buena conectividad entre sus actores.
 
 ### Conectividad
 
@@ -4161,9 +4482,11 @@ tabla.3bconectividad %>%
   kableExtra::kable_minimal()
 ```
 
+Como se observó en la visualización de la red (Figura \@ref(fig:visualizacion-mafia)), la red no es conexa, pues está compuesta por más de un componente conectado. Además, se identifican varios puntos de articulación, es decir, nodos cuya eliminación provocaría un aumento en el número de componentes de la red. Esto evidencia una estructura vulnerable, en la que la conectividad depende de un número reducido de actores que actúan como puentes entre distintos grupos.
+
 ### Clanes
 
-Para la elaboración del gráfico se tuvo ne cuenta la familia a la cual pertenecía o estaba relacionado, mientras que l profesiones y datos faltantes se consideraron como *sin clan*.
+Para la elaboración del gráfico se tuvo en cuenta la familia a la cual pertenecía o estaba relacionado, mientras que la profesiones y datos faltantes se consideraron como *sin clan*.
 
 ```{r}
 V(g)$size <- rescale(
@@ -4200,6 +4523,8 @@ plot(
   main = "Red de relaciones coloreada por clan"
 )
 
+plot.new()
+
 legend(
   "topleft",
   legend = names(cols),
@@ -4210,6 +4535,8 @@ legend(
   title = "Clan"
 )
 ```
+
+Se observa que los integrantes del clan Batanesi tienden a concentrarse espacialmente en una misma región de la red, lo que sugiere una mayor interacción entre sus miembros. En contraste, los integrantes de los demás clanes aparecen más dispersos y distribuidos a lo largo de la red, sin formar agrupaciones tan claramente definidas.
 
 ## c. Evaluar la importancia estructural de los nodos mediante grado, fuerza y medidas de centralidad, estudiar la cohesion de la red a través de cliques, densidad y transitividad, y apoyar la interpretacion con visualizaciones adecuadas. {.tabset}
 
@@ -4239,6 +4566,8 @@ medidas_1gcentralidad %>%
   ) %>% 
   kableExtra::kable_minimal()
 ```
+
+En promedio, los nodos presentan un grado normalizado bajo (0.032), lo que indica que cada actor mantiene relaciones con una proporción reducida del total de integrantes de la red. Asimismo, la intermediación promedio (0.002) es muy baja, sugiriendo que la mayoría de los actores no desempeña un papel relevante como puente en la comunicación entre otros nodos. En contraste, la cercanía presenta una media de 0.456, aunque con una desviación estándar relativamente alta (0.334), lo que evidencia diferencias importantes en la facilidad con la que los actores pueden alcanzar al resto de la red. Finalmente, la centralidad de vector propio presenta una media baja (0.057) y una desviación estándar superior a la media (0.140), indicando que solo un reducido grupo de actores se encuentra conectado con otros nodos altamente influyentes.
 
 ### Cohesión
 
@@ -4314,6 +4643,8 @@ tabla_cliques %>%
     kableExtra::kable_minimal()
 ```
 
+La distribución de los clanes evidencia que predominan los grupos de menor tamaño. En particular, los clanes de dos integrantes son los más frecuentes (58), seguidos por los de tres (31) y cuatro miembros (21). A medida que aumenta el tamaño del clan, su frecuencia disminuye considerablemente, encontrándose únicamente un clan conformado por siete integrantes. Este comportamiento sugiere que las relaciones altamente cohesivas entre un gran número de actores son poco comunes dentro de la red, predominando en cambio pequeños grupos donde todos sus miembros mantienen vínculos entre sí.
+
 ```{r tabla-densidad-mafia, tab.cap="Densidad de las componentes gigantes de la red completa"}
 densidad2c %>% 
   kableExtra::kbl(
@@ -4322,6 +4653,8 @@ densidad2c %>%
   ) %>% 
   kableExtra::kable_minimal()
 ```
+
+La densidad de la componente gigante (0.018) es ligeramente superior a la de la red completa (0.016). Este resultado era esperado, ya que al restringir el análisis a la componente de mayor tamaño se excluyen los nodos aislados y las componentes pequeñas, concentrando las conexiones en un subconjunto de actores más interrelacionados. No obstante, la diferencia entre ambas densidades es reducida, lo que indica que, incluso dentro de la componente gigante, la red mantiene una estructura poco densa.
 
 ### Transitividad
 
@@ -4383,6 +4716,8 @@ grafico_transitividad <-
 ```{r tl-mafia, fig.cap="Distribución de la transitividad local en la red completa", fig.height=9, fig.width=7, message=FALSE, warning=FALSE}
 grafico_transitividad
 ```
+
+La distribución de la transitividad local presenta una marcada heterogeneidad entre los nodos. Se observa una alta concentración de valores iguales a 1, lo que indica que numerosos actores pertenecen a vecindarios completamente cohesionados, donde todos sus vecinos están conectados entre sí. No obstante, también existen nodos con valores bajos de transitividad local, evidenciando que esta propiedad no es uniforme en toda la red.
 
 ## d. Aplicar y comparar métodos de deteccion de comunidades, evaluar la modularidad de las particiones, analizar la asortatividad por grado y por clan si corresponde, contrastar las comunidades detectadas con los clanes conocidos y visualizar la particion más adecuada.
 
@@ -4455,6 +4790,8 @@ tabla_clusters  %>%
   kableExtra::kable_minimal()
 ```
 
+Los algoritmos FastGreedy, Walktrap y Label Propagation presentan valores de modularidad superiores a 0.55, indicando una estructura comunitaria relativamente bien definida. En particular, FastGreedy obtiene la mayor modularidad (0.572), por lo que proporciona la partición que mejor separa las comunidades de la red. Por el contrario, el algoritmo Leiden identifica un número muy elevado de comunidades (109), lo que se traduce en una menor modularidad (0.316), sugiriendo una sobrefragmentación de la red.
+
 ```{r}
 
 mods <- tabla_clusters$Modularidad
@@ -4483,6 +4820,8 @@ table(
 
 
 ```
+
+La distribución de las familias entre las comunidades evidencia que los clanes identificados no corresponden de manera exacta con la estructura comunitaria de la red. Aunque algunas familias presentan una mayor concentración en una comunidad específica, como ocurre con Batanesi, cuyos integrantes se ubican principalmente en la comunidad 2, otras familias, como Mistretta y Mazzaroti, se encuentran distribuidas entre varias comunidades. Asimismo, los actores sin afiliación a un clan aparecen repartidos en prácticamente todas las comunidades, indicando que la organización estructural de la red no depende exclusivamente de la pertenencia a una familia.
 
 ```{r}
 mejor_algoritmo <- tabla_clusters$Algoritmo[
@@ -4536,4 +4875,1327 @@ legend(
 )
 ```
 
+En conjunto, estos resultados sugieren que las comunidades detectadas por los algoritmos reflejan patrones de interacción más complejos que la simple pertenencia a un clan. Es decir, aunque la afiliación familiar influye en algunos casos, las relaciones de la red también están determinadas por vínculos entre actores de diferentes familias y por individuos sin una afiliación conocida.
+
 ## e. Ajustar los modelos considerados previamente incorporando la informacion nodal relevante cuando sea pertinente, presentar e interpretar sus resultados mediante tablas y gráficos, evaluar su bondad de ajuste con base en densidad, transitividad, asortatividad y distancia geodésica promedio, y comparar su capacidad predictiva mediante validacion cruzada de 5 particiones. Las secciones de bondad de ajuste y capacidad predictiva deben tener una extension máxima de 1000 palabras cada una.
+
+```{r}
+set.seed(1927)
+# Modelo nulo
+g_net <- asNetwork(g)
+m1 <- ergm(g_net ~ edges)
+# Modelo de grafos aleatorios generalizado
+in_deg <- degree(
+  g,
+  mode = "in"
+)
+
+out_deg <- degree(
+  g,
+  mode = "out"
+)
+
+m2 <- sample_degseq(
+  out.deg = out_deg,
+  in.deg = in_deg,
+  method = "configuration"
+)
+#
+# ERGM aristas + triangulos
+m3 <- ergm(
+  g_net ~
+    edges +
+    triangle,
+  estimate = "MPLE"
+)
+# ERGM aristas + triangulos + clan
+m4 <- ergm(
+  g_net ~
+    edges +
+    triangle +
+    nodematch("clan"),
+  estimate = "MPLE"
+)
+# Bloques estocásticos
+A <- as.matrix(as_adjacency_matrix(g))
+m5 <- BM_bernoulli(
+  "SBM",
+  A
+)
+m5$estimate()
+# Modelo de espacio latente
+m6 <- ergmm(
+  g_net ~ euclidean(d = 2)
+)
+# Modelo de sociabilidad
+a_sigma <- 2
+b_sigma <- 1
+
+a_tau <- 0.01
+b_tau <- 0.01
+
+m7 <- gibbs_sampler(
+  y = A,
+  n_iter = 30000,
+  n_burn = 10000,
+  n_thin = 20
+)
+mu_hat <- mean(m6$mu)
+
+sigma2_hat <- mean(m6$sigma2)
+
+tau2_hat <- mean(m6$tau2)
+
+delta_hat <- colMeans(m6$delta)
+
+
+
+```
+
+### Modelo de grafos aleatorios
+
+```{r}
+tabla_ergm <- summary(m1)$coefficients  %>% 
+  as.data.frame() %>% 
+  tibble::rownames_to_column("Parámetro") %>% 
+  rename(
+    "Estimación" = Estimate,
+    `Error estándar` = `Std. Error`,
+    `Valor z` = `z value`,
+    `Valor p` = `Pr(>|z|)`
+  ) %>% 
+  mutate(
+    `Valor p` = ifelse(`Valor p` < 0.001,
+                       "<0.001",
+                       sprintf("%.3f", `Valor p`)),
+    across(c(Estimación, `Error estándar`, `Valor z`),
+           ~ round(.x, 3))
+  )
+```
+
+```{r mafia-ergm, tab.cap="Resultados del modelo ERGM para la red"}
+tabla_ergm %>% 
+  kableExtra::kbl(
+    caption = "Resultados del modelo ERGM para la red",
+    align = c("l", "c", "c", "c", "c"),
+    booktabs = TRUE
+  ) %>% 
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover")
+  )
+```
+
+El modelo nulo indica que la red presenta una baja propensión general a la formación de enlaces, como lo evidencia el coeficiente negativo y estadísticamente significativo del término edges. Esto refleja que, en ausencia de otros efectos, la red es relativamente dispersa y la probabilidad de que exista un vínculo entre dos actores es baja.
+
+### Modelo de grafos aleatorios generalizado {.tabset}
+
+#### Tabla
+
+```{r}
+tabla_m2 <- data.frame(Medida=c("Nodos",
+                                 "Aristas",
+                                 "Grado medio",
+                                 "Densidad"),
+                        Observada=c(vcount(g),
+                                    ecount(g),
+                                    mean(degree(g)),
+                                    edge_density(g)),
+                        Simulada=c(vcount(m2),
+                                    ecount(m2),
+                                    mean(degree(m2)),
+                                    edge_density(m2)))
+```
+
+```{r mafia-m2, tab.cap="Resultados del modelo de grafos aleatorios generalizado para la red"}
+tabla_m2 %>% 
+  kableExtra::kbl(
+    caption = "Resultados del modelo de grafos aleatorios generalizado para la red",
+    align = c("l", "c", "c", "c", "c"),
+    booktabs = TRUE, 
+    digits = 3
+  ) %>% 
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover")
+  )
+```
+
+#### Visualización
+
+```{r fig.height=15}
+par(mfrow=c(1,2))
+plot(g, 
+       vertex.size = 15,
+       vertex.label = "",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main='Red de la mafia')
+plot(m2, 
+       vertex.size = 15,
+       vertex.label = "",
+       vertex.color       = "burlywood", 
+       vertex.frame.color = "black",
+       edge.color         = "gray30",
+       main='Modelo')
+```
+
+
+#### Discusión
+
+El modelo de configuración preserva la secuencia de grados, pero puede generar lazos y aristas múltiples. En consecuencia, aunque reproduce exactamente medidas como el número de aristas y la densidad, la estructura de la red simulada puede diferir de la observada.
+
+
+### Modelo de grafos aleatorios exponencial con número de aristas y triángulos
+
+```{r}
+tabla_ergm <- summary(m3)$coefficients  %>% 
+  as.data.frame() %>% 
+  tibble::rownames_to_column("Parámetro") %>% 
+  rename(
+    "Estimación" = Estimate,
+    `Error estándar` = `Std. Error`,
+    `Valor z` = `z value`,
+    `Valor p` = `Pr(>|z|)`
+  ) %>% 
+  mutate(
+    `Valor p` = ifelse(`Valor p` < 0.001,
+                       "<0.001",
+                       sprintf("%.3f", `Valor p`)),
+    across(c(Estimación, `Error estándar`, `Valor z`),
+           ~ round(.x, 3))
+  )
+```
+
+```{r mafia-ergm3, tab.cap="Resultados por estimación MPLE"}
+tabla_ergm %>% 
+  kableExtra::kbl(
+    caption = "Resultados del modelo ERGM con número de aristas y triángulos para la red de consenso",
+    align = c("l", "c", "c", "c", "c"),
+    booktabs = TRUE
+  ) %>% 
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover")
+  )
+```
+
+El coeficiente negativo y significativo del término edges indica que la red presenta una baja propensión general a la formación de enlaces, lo que es consistente con una estructura relativamente dispersa. Sin embargo, el coeficiente positivo y significativo del término triangle evidencia una tendencia al cierre triádico, indicando que, cuando dos actores comparten un vecino en común, aumenta la probabilidad de que también establezcan un vínculo entre sí. En consecuencia, aunque la red no es densa, los enlaces existentes muestran una tendencia a organizarse en triángulos.
+
+### Modelo de grafos aleatorios exponencial con número de aristas, triángulos y rol
+
+```{r}
+tabla_ergm <- summary(m4)$coefficients  %>% 
+  as.data.frame() %>% 
+  tibble::rownames_to_column("Parámetro") %>% 
+  rename(
+    "Estimación" = Estimate,
+    `Error estándar` = `Std. Error`,
+    `Valor z` = `z value`,
+    `Valor p` = `Pr(>|z|)`
+  ) %>% 
+  mutate(
+    `Valor p` = ifelse(`Valor p` < 0.001,
+                       "<0.001",
+                       sprintf("%.3f", `Valor p`)),
+    across(c(Estimación, `Error estándar`, `Valor z`),
+           ~ round(.x, 3))
+  )
+```
+
+```{r mafia-ergm4, tab.cap="Resultados por estimación MPLE"}
+tabla_ergm %>% 
+  kableExtra::kbl(
+    caption = "Resultados del modelo ERGM con número de aristas, triángulos y rol",
+    align = c("l", "c", "c", "c", "c"),
+    booktabs = TRUE
+  ) %>% 
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover")
+  )
+```
+
+De manera interesante, el término nodematch.clan presenta un coeficiente negativo y estadísticamente significativo. Esto indica que, una vez controlados el número de aristas y la tendencia a formar triángulos, pertenecer al mismo clan disminuye la probabilidad de que dos actores establezcan un enlace directo. En consecuencia, la pertenencia a un mismo clan no parece favorecer las relaciones dentro de la red y, por el contrario, las conexiones tienden a establecerse con actores de otros clanes o sin afiliación conocida.
+
+### Modelo de bloques estocásticos {.tabset}
+
+#### Tabla
+
+```{r bs-mafia, tab.cap="Resultados del modelo de bloques estocásticos para la red"}
+extraer_sbm(modelo = m5) %>% 
+  dplyr::select(-PL) %>% 
+  kableExtra::kbl(
+    caption = "Resultados del modelo de bloques estocásticos para la red",
+    align = c("l", "c", "c", "c", "c"),
+    booktabs = TRUE
+  ) %>% 
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover")
+  )
+```
+
+
+#### Visualización
+
+```{r}
+which.max(m5$ICL)
+Z <- m5$memberships[[3]]$Z
+
+bloques <- apply(
+  Z,
+  1,
+  which.max
+)
+red_nda <- as_undirected(
+  g,
+  mode = "collapse"
+)
+red_nd <- intergraph::asNetwork(red_nda)
+network::set.vertex.attribute(
+  red_nd,
+  "bloque",
+  bloques
+)
+```
+
+```{r mafia-bloques, fig.height=14}
+plot(
+  red_nd,
+  vertex.col = bloques,
+  vertex.cex = 2,
+  displaylabels = TRUE,
+  label = network.vertex.names(red_nd),
+  edge.col = "grey70",
+  main = "Modelo de bloques estocásticos"
+)
+```
+
+
+#### Discusión
+
+El modelo de bloques estocásticos identificó tres comunidades  \@ref(tab:bs-mafia)) como la estructura óptima de la red. No obstante, la distribución de los tamaños evidencia una marcada heterogeneidad, ya que una comunidad concentra la mayor parte de los nodos (108), mientras que las otras dos están conformadas únicamente por 17 y 18 actores, respectivamente. Esto sugiere que la estructura de la red está dominada por un bloque principal acompañado de dos comunidades de menor tamaño.
+
+### Modelo latente de distancia clásico con dos dimensiones latentes {.tabset}
+
+#### Tabla
+
+```{r}
+tabla_latente <- tibble(
+  Característica = c(
+    "Modelo",
+    "Distribución",
+    "Dimensiones latentes",
+    "Tamaño de la muestra MCMC",
+    "Burn-in",
+    "Separación entre muestras"
+  ),
+  Valor = c(
+    "Distancia euclidiana",
+    "Bernoulli",
+    2,
+    m6$control$sample.size,
+    m6$control$burnin,
+    m6$control$interval
+  )
+)
+
+```
+
+```{r mafia-latente, tab.cap= "Resumen del modelo latente de distancia para la red"}
+tabla_latente  %>% 
+  kbl(
+    caption = "Resumen del modelo latente de distancia para la red",
+    align = c("l", "c"),
+    booktabs = TRUE
+  )  %>% 
+  kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover")
+  )
+```
+
+#### Visualización
+
+```{r message=FALSE, warning=FALSE}
+plot(m6)
+```
+
+#### Discusión
+
+El modelo latente de distancia representa a los actores en un espacio euclidiano bidimensional, donde la proximidad entre nodos refleja una mayor probabilidad de interacción. Se observa que la mayoría de los actores se concentra alrededor del centro del espacio latente, formando varios grupos relativamente compactos. Esto sugiere la existencia de patrones de interacción locales, en los que los enlaces se establecen preferentemente entre actores cercanos en dicho espacio.
+
+### Modelo de sociabilidad 
+
+```{r}
+tabla_sociabilidad <- tibble(
+
+  Parámetro = c(
+    "μ",
+    "σ²",
+    "τ²"
+  ),
+
+  `Media posterior` = c(
+    mean(m7$mu),
+    mean(m7$sigma2),
+    mean(m7$tau2)
+  ),
+
+  `Desv. estándar` = c(
+    sd(m7$mu),
+    sd(m7$sigma2),
+    sd(m7$tau2)
+  ),
+
+  `IC 2.5%` = c(
+    quantile(m7$mu, .025),
+    quantile(m7$sigma2, .025),
+    quantile(m7$tau2, .025)
+  ),
+
+  `IC 97.5%` = c(
+    quantile(m7$mu, .975),
+    quantile(m7$sigma2, .975),
+    quantile(m7$tau2, .975)
+  )
+
+)  %>% 
+
+  mutate(
+    across(
+      -Parámetro,
+      ~ round(.x, 3)
+    )
+  )
+```
+
+```{r}
+tabla_sociabilidad  %>% 
+
+  kbl(
+    caption = "Resumen posterior del modelo de sociabilidad",
+    align = c("l", "c", "c", "c", "c"),
+    booktabs = TRUE
+  )  %>% 
+
+  kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c(
+      "striped",
+      "hover"
+    )
+  )
+```
+
++ La media posterior del intercepto ($\mu=-2.416$) presenta un intervalo de credibilidad que no incluye el cero, indicando una baja propensión general a la formación de enlaces en la red.
+
++ La varianza de los efectos de sociabilidad ($\sigma^2=2.572$) presenta un intervalo de credibilidad amplio (0.616–8.985), lo que evidencia heterogeneidad entre los actores en su tendencia a establecer relaciones. Es decir, algunos individuos muestran una mayor propensión a conectarse que otros.  
+
++ La varianza del término de error ($\tau^2=0.278$) es relativamente pequeña y su intervalo de credibilidad no incluye el cero, lo que indica que el modelo captura una parte importante de la variabilidad de la red, aunque persiste una componente de variación no explicada.
+
++ En conjunto, estos resultados sugieren que la red mafiosa se caracteriza por una baja propensión general a formar enlaces, pero con diferencias marcadas entre actores en su nivel de sociabilidad, lo que es consistente con una estructura donde unos pocos individuos desempeñan un papel mucho más central que la mayoría.
+
+## Resumen
+
+| Modelo | Parámetros | Qué modela | Resultado principal |
+|-----------------|-----------------|-----------------|-----------------------|
+| **M1:**Modelo de grafos aleatorios | edges | Densidad | Hay poca densidad |
+| **M2:**Modelo de grafos aleatorios generalizado | grado fijo | Secuencia de grados | El modelo preserva las características globales pero no replica la red exactamente igual. |
+| **M3:**Modelo de grafos aleatorios exponencial con número de aristas y triángulos | edges + triangle | Cierre triádico | Si pertenecen al mismo clan disminuye la probabilidad de interacción. |
+| **M4:**Modelo de grafos aleatorios exponencial con número de aristas, triángulos y rol| edges + triangle | Cierre triádico | Red poco densa, pero de las aristas que hay hay alta probabilidad de un cierre triádico |
+| **M5:**Modelo de bloques estocásticos | SBM | Comunidades |Hay dos comunidades principales de tamaño similar |
+| **M6:**Modelo latente de distancia clásico con dos dimensiones latentes | Latente | Distancias ocultas | Dos concentraciones principales de nodos similares a la estructura de bloques estocásticos |
+| **M7:**Modelo de sociabilidad | Sociabilidad | Heterogeneidad nodal | Baja propensión a la formación de enlaces y existencia de heterogenidad entre los actores |
+
+: Resumen modelos ajustados
+
+## Bondad de ajuste
+
+```{r}
+
+estadisticas_red <- function(red){
+
+  if (inherits(red, "network")) {
+    red <- intergraph::asIgraph(red)
+  }
+
+  tibble(
+    densidad = edge_density(red),
+    transitividad = transitivity(red, type = "global"),
+    asortatividad = assortativity_degree(red),
+    geodesica = mean_distance(red, directed = TRUE)
+  )
+
+}
+obs <- estadisticas_red(g)
+set.seed(2252)
+sim_m1 <- simulate(m1, nsim = 100)
+res_m1 <- purrr::map_dfr(
+  sim_m1,
+  estadisticas_red
+)  %>% 
+  dplyr::mutate(modelo = "M1")
+sim_m2 <- replicate(
+  100,
+  sample_degseq(
+    degree(red_nda),
+    method = "configuration"
+  ),
+  simplify = FALSE
+)
+res_m2 <- purrr::map_dfr(
+  sim_m2,
+  estadisticas_red
+)  %>% 
+  mutate(modelo = "M2")
+sim_m3 <- simulate(m3, nsim = 100)
+res_m3 <- purrr::map_dfr(
+  sim_m3,
+  estadisticas_red
+) %>% 
+  mutate(modelo="M3")
+
+sim_m4 <- simulate(m4, nsim = 100)
+res_m4 <- purrr::map_dfr(
+  sim_m4,
+  estadisticas_red
+) %>% 
+  mutate(modelo="M4")
+
+P <- m5$prediction(2)
+diag(P) <- 0
+simular_sbm <- function(P){
+
+  A <- matrix(
+    rbinom(
+      length(P),
+      size = 1,
+      prob = as.vector(P)
+    ),
+    nrow = nrow(P),
+    byrow = FALSE
+  )
+
+  diag(A) <- 0
+
+  ## Asegurar simetría
+  A[lower.tri(A)] <- t(A)[lower.tri(A)]
+
+  graph_from_adjacency_matrix(
+    A,
+    mode = "undirected",
+    diag = FALSE
+  )
+
+}
+sim_m5 <- replicate(
+  100,
+  simular_sbm(P),
+  simplify = FALSE
+)
+res_m5 <- purrr::map_dfr(
+  sim_m5,
+  estadisticas_red
+)  %>% 
+  mutate(
+    modelo = "M5"
+  )
+
+sim_m6 <- replicate(
+  100,
+  simulate(m6),
+  simplify = FALSE
+)
+res_m6 <- purrr::map_dfr(
+  sim_m6,
+  estadisticas_red
+)  %>% 
+  mutate(modelo="M6")
+
+simular_sociabilidad <- function(mu, delta){
+
+  n <- length(delta)
+
+  A <- matrix(0, n, n)
+
+  for(i in 1:(n-1)){
+
+    for(j in (i+1):n){
+
+      p <- pnorm(
+        mu +
+        delta[i] +
+        delta[j]
+      )
+
+      A[i,j] <- rbinom(
+        1,
+        size = 1,
+        prob = p
+      )
+
+      A[j,i] <- A[i,j]
+
+    }
+
+  }
+
+  graph_from_adjacency_matrix(
+    A,
+    mode = "undirected",
+    diag = FALSE
+  )
+
+}
+
+idx <- sample(
+  seq_along(m7$mu),
+  100
+)
+
+sim_m7 <- purrr::map(
+  idx,
+  \(k){
+
+    simular_sociabilidad(
+      mu = m7$mu[k],
+      delta = m7$delta[k, ]
+    )
+
+  }
+)
+res_m7 <- purrr::map_dfr(
+  sim_m7,
+  estadisticas_red
+)  %>% 
+  mutate(
+    modelo = "M7"
+  )
+
+todos <- bind_rows(
+  res_m1,
+  res_m2,
+  res_m3,
+  res_m4,
+  res_m5,
+  res_m6,
+  res_m7
+)
+```
+
+### Densidad
+
+```{r densidad-ajuste, fig.height=15}
+ggplot(
+  todos,
+  aes(
+    x = modelo,
+    y = densidad
+  )
+)+
+geom_boxplot()+
+geom_hline(
+  yintercept = obs$densidad,
+  colour="red",
+  linetype=2
+)
+```
+
++ Como era de esperarse, el modelo Bernoulli (M1) reproduce adecuadamente la densidad de la red, ya que este parámetro hace parte explícita de su especificación.
+
++ El modelo basado en la secuencia de grados (M2) también reproduce satisfactoriamente la densidad observada, aunque con una ligera tendencia a sobreestimarla.
+
++ Los modelos ERGM (M3 y M4) generan redes considerablemente más densas que la observada, evidenciando un sobreajuste producido por el fuerte efecto de los triángulos. Como consecuencia, estos modelos no logran reproducir adecuadamente la baja densidad característica de la red.
+
+El modelo de bloques estocásticos (M5), de espacio latente (M6) y sociabilidad (M7) reproducen adecuadamente la densidad observada, con una distribución de simulaciones centrada alrededor del valor empírico.
+
+### Transitividad
+
+```{r transitividad-ajuste, fig.height=15}
+ggplot(
+  todos,
+  aes(
+    x = modelo,
+    y = transitividad
+  )
+)+
+geom_boxplot()+
+geom_hline(
+  yintercept = obs$densidad,
+  colour="red",
+  linetype=2
+)
+```
+
++ Los modelos ERGM (M3 y M4), de espacio latente (M6) y sociabilidad (M7) sobreestiman fuertemente la transitividad, generando redes con una cantidad excesiva de triángulos respecto a la red observada. Esto es consistente con el efecto positivo estimado para el parámetro de triángulos.
+
+### Asortatividad
+
+```{r asortatividad-ajuste, fig.height=15}
+ggplot(
+  todos,
+  aes(
+    x = modelo,
+    y = asortatividad
+  )
+)+
+geom_boxplot()+
+geom_hline(
+  yintercept = obs$densidad,
+  colour="red",
+  linetype=2
+)
+```
+
++ Los modelo SBM (M5) y sociabilidad (M7) tienden a subestimar la asortatividad, generando redes con una estructura más desasortativa que la observada.
+
++ El modelo latente (M6) sobreestima la asortatividad, generando una asociación entre nodos similares mayor que la presente en la red observada.
+
+### Distancia geodésica
+
+```{r geodesica-ajuste, fig.height=15}
+ggplot(
+  todos,
+  aes(
+    x = modelo,
+    y = geodesica
+  )
+)+
+geom_boxplot()+
+geom_hline(
+  yintercept = obs$densidad,
+  colour="red",
+  linetype=2
+)
+```
+
++ Los modelos ERGM generan caminos promedio muy cortos debido a la elevada densidad de las redes simuladas.
+
+En conjunto, los diagnósticos muestran que ningún modelo reproduce simultáneamente todas las propiedades estructurales de la red. Los modelos ERGM (M3 y M4) capturan adecuadamente la formación de triángulos según su especificación, pero generan redes excesivamente densas y altamente transitivas, alejándose de la estructura observada. Por su parte, los modelos Bernoulli, de grados, SBM, latente y de sociabilidad reproducen mejor la baja densidad de la red, aunque presentan diferencias en propiedades como la asortatividad y la longitud de los caminos geodésicos. En consecuencia, la elección del modelo depende de cuál característica estructural de la red se considere prioritaria para el análisis.
+
+## Validación cruzada {.tabset}
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+crear_folds <- function(
+    red,
+    k = 5,
+    seed = 2252
+){
+
+  A <- as.matrix.network.adjacency(red)
+
+  dyads <- which(
+    upper.tri(A),
+    arr.ind = TRUE
+  )
+
+  set.seed(seed)
+
+  folds <- createFolds(
+    seq_len(nrow(dyads)),
+    k = k,
+    list = TRUE
+  )
+
+  list(
+    A = A,
+    dyads = dyads,
+    folds = folds
+  )
+
+}
+
+#--------------------------------------------------
+# Crear red de entrenamiento
+#--------------------------------------------------
+
+crear_red_train <- function(
+  A,
+  dyads,
+  test,
+  g
+) {
+
+  A_train <- A
+
+  for (i in test) {
+
+    u <- dyads[i, 1]
+    v <- dyads[i, 2]
+
+    A_train[u, v] <- NA
+    A_train[v, u] <- NA
+  }
+
+  red_train <- network(
+    A_train,
+    matrix.type = "adjacency"
+  )
+
+  # Copiar atributos
+  network::set.vertex.attribute(
+    red_train,
+    "clan",
+    network::get.vertex.attribute(g, "clan")
+  )
+
+  list(
+    A = A_train,
+    red = red_train
+  )
+}
+#--------------------------------------------------
+# Conjunto de prueba
+#--------------------------------------------------
+
+obtener_test <- function(
+    A,
+    dyads,
+    test
+){
+
+  tibble(
+
+    i = dyads[test,1],
+
+    j = dyads[test,2],
+
+    y = purrr::map2_dbl(
+      dyads[test,1],
+      dyads[test,2],
+      ~A[.x,.y]
+    )
+
+  )
+
+}
+
+#--------------------------------------------------
+# Métricas
+#--------------------------------------------------
+
+evaluar_prediccion <- function(
+    obs,
+    prob
+){
+
+  roc_obj <- roc(
+    response = obs,
+    predictor = prob,
+    quiet = TRUE
+  )
+
+  pred <- ifelse(
+    prob > 0.5,
+    1,
+    0
+  )
+
+  tibble(
+
+    AUC = as.numeric(
+      auc(roc_obj)
+    ),
+
+    Accuracy = mean(
+      pred == obs
+    )
+
+  )
+
+}
+
+#--------------------------------------------------
+# Validación cruzada general
+#--------------------------------------------------
+
+validacion_cruzada <- function(
+    red,
+    predecir,
+    k = 5,
+    seed = 2252
+){
+
+  datos <- crear_folds(
+    red = red,
+    k = k,
+    seed = seed
+  )
+
+  resultados <- vector(
+    "list",
+    k
+  )
+
+  for(fold in seq_len(k)){
+
+    cat(
+      "Fold",
+      fold,
+      "\n"
+    )
+
+    train <- crear_red_train(
+  datos$A,
+  datos$dyads,
+  datos$folds[[fold]],
+  g_net
+)
+
+    test <- obtener_test(
+      datos$A,
+      datos$dyads,
+      datos$folds[[fold]]
+    )
+
+    prob <- predecir(
+  train,
+  test
+)
+
+    resultados[[fold]] <-
+
+      evaluar_prediccion(
+        obs = test$y,
+        prob = prob
+      ) %>% 
+
+      mutate(
+        Fold = fold
+      )
+
+  }
+
+  bind_rows(resultados)
+
+}
+
+predecir_m1 <- function(
+    red_train,
+    test
+){
+
+  fit <- ergm(
+    red_train$red ~ edges
+  )
+
+  theta <- coef(fit)[1]
+
+  p <- plogis(theta)
+
+  rep(
+    p,
+    nrow(test)
+  )
+
+}
+
+predecir_m2 <- function(
+    red_train,
+    test,
+    nsim = 500
+){
+
+  A <- red_train$A
+
+  A[is.na(A)] <- 0
+
+  g <- graph_from_adjacency_matrix(
+    A,
+    mode = "undirected",
+    diag = FALSE
+  )
+
+  grados <- degree(g)
+
+  sims <- replicate(
+
+    nsim,
+
+    sample_degseq(
+      grados,
+      method = "configuration"
+    ),
+
+    simplify = FALSE
+
+  )
+
+  P <- matrix(
+    0,
+    nrow = vcount(g),
+    ncol = vcount(g)
+  )
+
+  for(sim in sims){
+
+    A_sim <- as.matrix(
+      as_adjacency_matrix(
+        sim,
+        sparse = FALSE
+      )
+    )
+
+    P <- P + A_sim
+
+  }
+
+  P <- P / nsim
+
+  purrr::map2_dbl(
+    test$i,
+    test$j,
+    ~ P[.x, .y]
+  )
+
+}
+
+delta_triangle <- function(A, i, j){
+
+  vecinos_i <- which(A[i, ] == 1)
+  vecinos_j <- which(A[j, ] == 1)
+
+  length(intersect(vecinos_i, vecinos_j))
+
+}
+predecir_m3 <- function(
+    red_train,
+    test
+){
+
+  fit <- ergm(
+    red_train$red ~
+      edges +
+      triangle,
+    estimate = "MPLE"
+  )
+
+  theta <- coef(fit)
+
+  A <- red_train$A
+
+  A[is.na(A)] <- 0
+
+  purrr::map2_dbl(
+
+    test$i,
+
+    test$j,
+
+    function(i, j){
+
+      dtri <- delta_triangle(
+        A,
+        i,
+        j
+      )
+
+      eta <-
+        theta["edges"] +
+        theta["triangle"] * dtri
+
+      plogis(eta)
+
+    }
+
+  )
+
+}
+
+predecir_m4 <- function(
+    red_train,
+    test
+){
+
+  fit <- ergm(
+    red_train$red ~
+      edges +
+      triangle +
+      nodematch("clan"),
+    estimate = "MPLE"
+  )
+
+  theta <- coef(fit)
+
+  A <- red_train$A
+
+  A[is.na(A)] <- 0
+
+  purrr::map2_dbl(
+
+    test$i,
+
+    test$j,
+
+    function(i, j){
+
+      dtri <- delta_triangle(
+        A,
+        i,
+        j
+      )
+
+      eta <-
+        theta["edges"] +
+        theta["triangle"] * dtri
+
+      plogis(eta)
+
+    }
+
+  )
+
+}
+
+
+predecir_m5 <- function(
+    red_train,
+    test
+){
+
+  A <- red_train$A
+  A[is.na(A)] <- 0
+
+  fit <- BM_bernoulli(
+    "SBM",
+    A
+  )
+
+  fit$estimate()
+
+  best <- which.max(fit$ICL)
+
+  Z <- fit$memberships[[best]]$Z
+
+  bloques <- apply(
+    Z,
+    1,
+    which.max
+  )
+
+  Pi <- fit$model_parameters[[best]]$pi
+
+  purrr::map2_dbl(
+    test$i,
+    test$j,
+    ~ Pi[bloques[.x], bloques[.y]]
+  )
+
+}
+
+predecir_m6 <- function(
+    red_train,
+    test
+){
+
+  fit <- ergmm(
+    red_train$red ~
+      euclidean(d = 2)
+  )
+
+  beta <- fit$mkl$beta
+
+  Z <- fit$mkl$Z
+
+  purrr::map2_dbl(
+
+    test$i,
+
+    test$j,
+
+    function(i, j){
+
+      dij <- sqrt(
+        sum(
+          (Z[i, ] - Z[j, ])^2
+        )
+      )
+
+      plogis(
+        beta - dij
+      )
+
+    }
+
+  )
+
+}
+predecir_m7 <- function(
+    red_train,
+    test
+){
+
+  A <- red_train$A
+
+  A[is.na(A)] <- 0
+
+  fit <- gibbs_sampler(
+    y = A,
+    n_iter = 5000,
+    n_burn = 2000,
+    n_thin = 10
+  )
+
+  mu <- mean(fit$mu)
+
+  delta <- colMeans(fit$delta)
+
+  purrr::map2_dbl(
+
+    test$i,
+
+    test$j,
+
+    function(i, j){
+
+      pnorm(
+        mu +
+          delta[i] +
+          delta[j]
+      )
+
+    }
+
+  )
+
+}
+
+
+
+cv_m1 <- validacion_cruzada(
+  g_net,
+  predecir_m1
+)
+
+cv_m2 <- validacion_cruzada(
+  red_nd,
+  predecir_m2
+)
+
+cv_m3 <- validacion_cruzada(
+  g_net,
+  predecir_m3
+)
+
+cv_m4 <- validacion_cruzada(
+  g_net,
+  predecir_m4
+)
+
+cv_m5 <- validacion_cruzada(
+  g_net,
+  predecir_m5
+)
+
+cv_m6 <- validacion_cruzada(
+  g_net,
+  predecir_m6
+)
+
+cv_m7 <- validacion_cruzada(
+  g_net,
+  predecir_m7
+)
+
+```
+
+### Tabla de resumen
+
+```{r}
+cv_total <- bind_rows(
+  cv_m1 %>%  mutate(Modelo = "M1: Bernoulli"),
+  cv_m2 %>%  mutate(Modelo = "M2: Grados"),
+  cv_m3 %>%  mutate(Modelo = "M3: ERGM"),
+  cv_m4 %>%  mutate(Modelo = "M4: ERGM + rol"),
+  cv_m5 %>%  mutate(Modelo = "M5: SBM"),
+  cv_m6 %>%  mutate(Modelo = "M6: Latente"),
+  cv_m7 %>%  mutate(Modelo = "M7: Sociabilidad")
+)
+
+tabla_cv <-
+  cv_total %>% 
+  group_by(Modelo) %>% 
+  summarise(
+    AUC_media = mean(AUC),
+    AUC_sd = sd(AUC),
+    Accuracy_media = mean(Accuracy),
+    Accuracy_sd = sd(Accuracy),
+    .groups = "drop"
+  ) %>% 
+  mutate(
+    across(
+      -Modelo,
+      ~round(.x, 3)
+    )
+  )
+
+```
+
+```{r tabla-cv}
+tabla_cv %>% 
+  kableExtra::kbl(caption = "Resultados de la validación cruzada de cinco folds",
+    booktabs = TRUE,
+    align = c("l","c","c","c","c"),
+    col.names = c(
+      "Modelo",
+      "AUC media",
+      "DE",
+      "Accuracy media",
+      "DE"
+    )) %>%
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    position = "center"
+  ) %>%
+  kableExtra::row_spec(0, bold = T) %>%
+  kableExtra::row_spec(
+    c(7),
+    bold = TRUE,
+    background = "#CF2F40",
+    color = "white"
+  )
+```
+
+### Boxplot del AUC
+
+```{r boxplot-auc, fig.cap= "Boxplot del área bajo la curva (AUC por sus siglas en inglés)"}
+ggplot(
+  cv_total,
+  aes(
+    Modelo,
+    AUC,
+    fill = Modelo
+  )
+) +
+  geom_boxplot(
+    alpha = .8
+  ) +
+  labs(
+    x = NULL,
+    y = "AUC",
+    title = "Capacidad predictiva según el AUC"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "none"
+  )
+```
+
+### Discusión
+
++ M1 (Bernoulli): AUC = 0.50. No tiene capacidad discriminante; predice prácticamente al azar. Era esperable, ya que únicamente considera una probabilidad global de enlace.
+
++ M2 (Grados): AUC = 0.730. Con solo preservar la secuencia de grados, el modelo logra una capacidad predictiva aceptable. Esto sugiere que la heterogeneidad en el número de conexiones de los nodos explica una parte importante de la estructura de la red.
+
++ M3 (ERGM): AUC = 0.683. Mejor que el azar, aunque inferior al modelo de grados. Incorporar el cierre triádico aporta información, pero no alcanza el desempeño de otros modelos.
+
++ M4 (ERGM): AUC = 0.683. El modelo con la covariable de rol no presente mejoras con respecto al modelo M3.
+
++ M5 (SBM): AUC = 0.773, lo que evidencia que la estructura en comunidades explica una parte importante de la formación de enlaces.
+
++ M6 (Latente): AUC = 0.827, el mayor de todos. Es el modelo que mejor discrimina entre pares de nodos conectados y no conectados, lo que sugiere que la proximidad en el espacio latente representa muy bien la estructura de la red de consenso. 
+
++ M7 (Sociabilidad): AUC = 0.835. Apenas mejora al azar, indicando que la heterogeneidad en la sociabilidad por sí sola no es suficiente para explicar la formación de los enlaces.
