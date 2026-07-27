@@ -1,0 +1,514 @@
+---
+title: ANÁLISIS DE CONOCIMIENTO EN LA CARRERA DE ESTADÍSTICA DE LA UNIVERSIDAD NACIONAL
+  DE COLOMBIA
+author: "María Paula Camargo Rincón"
+date: "2026-07-26"
+output:
+  bookdown::html_document2:
+    theme: flatly
+    toc: true
+    toc_float: true
+    number_sections: true
+    code_folding: hide
+css: estilos.css  
+---
+
+
+# Introducción
+
+# Bases de datos
+
+La base de datos fue construida a partir de la información obtenida en (https://diracad.bogota.unal.edu.co/recursos/pdf/unal-aspirante/PEP/PEP-estadistica.pdf), el cuál indica las materias que se ofertaban y a que componente pertenecían, además de esto se uso de referencia para la información obtenida de los conceptos la pagina de "buscador de cursos" (https://sia.unal.edu.co/Catalogo/facespublico/public/servicioPublico.jsf;PortalJSESSION=9lufb8gy-W6LzWJjv_WKh5VhEEDkhbwki1AQy5tD171Z-1NcvMru!1161720672?taskflowId=task-flow-AC_CatalogoAsignaturas)
+encontrando que no todas la materias previstas en el pep mencionado anteriormente estaban vigentes, además de eso en busca de encontrar todas las materias incluso aquellas que ya no se ofertan se uso uso de la página de "contenido de asignaturas" (https://siabog.unal.edu.co/academia/apoyo-administrativo/ConsultaContenidos.do), encontrando en ella algunos programas o descripciones de algunos cursos faltantes.
+
+Se realizo 4 tablas resumiendo l información obtenida:
+
+Hoja 1: 'CONCEPTOS'. en esta tabla tengo el Id del concepto, el nombre del concepto y una descripción de este. Hoja 2: 'CONCEPTOS_RELACIONES', en esta tabla tengo el id origen del concepto, el id destino del concepto, donde la relación indica que hay que saber del concepto origen para entender o aprender el concepto destino. Hoja 3: 'CURSOS', en esta tabla tengo el id del curso, el nombre del curso, el componente al que pertenece (los componentes son: APLICACIÓN ESTADÍSTICA, COMPLEMENTACIÓN ESTADÍSTICA, COMPLEMENTACIÓN MATEMÁTICA, COMUNICACIÓN, CONSOLIDACIÓN ESTADÍSTICA, FUNDAMENTACIÓN EN CIENCIAS, FUNDAMENTACIÓN MATEMÁTICO-ESTADÍSTICA, GUARDA Y FLUJO DE DATOS, METODOLOGÍA, NÚCLEO ESTADÍSTICO y PROGRAMACIÓN.) la cantidad de créditos, la cual oscila entre 2 y 4, y si es o no obligatoria Hoja 4: 'CURSOS-CONCEPTOS', en esta tengo el id del curso, el id del concepto, y el rol del concepto (introduce o desarrolla) acá relaciono los conceptos a los cursos es decir en un curso A se ven los conceptos 1,2 y 3 pero en un curso B se ven los conceptos 3,4 y 7.
+
+
+```{r}
+library(readxl)
+library(igraph)
+library(dplyr)
+library(viridisLite)
+library(blockmodels)
+library(tidyr)
+library(network)
+library(latentnet)
+library(intergraph)
+
+```
+
+```{r creación-redes}
+
+# Creación red de conceptos
+conceptos <- read_excel(
+  "BASES.xlsx",
+  sheet = "CONCEPTOS"
+)
+
+relaciones <- read_excel(
+  "BASES.xlsx",
+  sheet = "CONCEPTOS_RELACIONES"
+)
+
+g_conceptos <- graph_from_data_frame(
+  d = relaciones,
+  vertices = conceptos,
+  directed = TRUE
+)
+
+V(g_conceptos)$size <- scales::rescale(
+  degree(g_conceptos, mode = "out"),
+  to = c(4, 12)
+)
+
+roots <- V(g_conceptos)[degree(g_conceptos, mode = "in") == 0]
+
+D <- distances(
+  g_conceptos,
+  v = roots,
+  to = V(g_conceptos),
+  mode = "out"
+)
+
+nivel <- apply(D, 2, min)
+nivel[is.infinite(nivel)] <- NA
+
+V(g_conceptos)$nivel <- nivel
+
+pal <- viridis(
+  max(nivel, na.rm = TRUE) + 1,
+  option = "C"
+)
+
+V(g_conceptos)$color <- pal[nivel + 1]
+
+set.seed(1302)
+lay <- layout_with_sugiyama(
+  g_conceptos
+)$layout
+
+g_louvain <- as.undirected(
+  g_conceptos,
+  mode = "collapse"
+)
+
+com <- cluster_louvain(g_louvain)
+
+membership <- membership(com)
+
+table(membership)
+
+V(g_conceptos)$comunidad <- membership
+
+k <- length(unique(membership))
+
+cols <- viridis(
+  k,
+  option = "turbo"
+)
+
+V(g_conceptos)$color2 <- cols[membership]
+
+
+# Creación red bipartita CURSOS-CONCEPTOS
+cursos <- read_excel(
+  "BASES.xlsx",
+  sheet = "CURSOS"
+)
+
+cursos <- cursos %>% 
+  filter(!is.na(ID_curso)) # eliminando NA's que son los cursos que no se ofertan
+
+curso_concepto <- read_excel(
+  "BASES.xlsx",
+  sheet = "CURSOS-CONCEPTOS"
+)
+
+vertices <- rbind(
+  data.frame(
+    name = cursos$ID_curso,
+    tipo = "Curso"
+  ),
+  data.frame(
+    name = conceptos$ID_concepto,
+    tipo = "Concepto"
+  )
+)
+
+vertices <- vertices  %>% 
+  left_join(
+    cursos  %>% 
+      select(ID_curso, Obligatoria),
+    by = c("name" = "ID_curso")
+  )
+
+g_bip <- graph_from_data_frame(
+  d = curso_concepto[, c("ID_curso", "ID_concepto")],
+  vertices = vertices,
+  directed = FALSE
+)
+
+vertices$grado <- degree(g_bip) #grado de la red bipartita para visualización
+
+vertices$color <- case_when(
+  vertices$tipo == "Concepto" ~ "grey80",
+  vertices$Obligatoria == "sí" ~ "#2C7BB6", # Si es obligatoria entonces azul
+  TRUE ~ "#D7191C" # de lo contrario rojo
+)
+
+vertices$size <- ifelse( # tamaño de los vértices de acuerdo al grado
+  vertices$tipo == "Concepto",
+  scales::rescale(vertices$grado,
+                  to = c(4, 12)),
+  8
+)
+
+vertices$shape <- ifelse(
+  vertices$tipo == "Curso",
+  "square",
+  "circle"
+)
+
+V(g_bip)$color <- vertices$color
+V(g_bip)$size <- vertices$size
+V(g_bip)$shape <- vertices$shape
+
+```
+
+# tabla resumen
+
+```{r crear-tabla-resumen}
+resumen_red <- function(g, bipartito = FALSE) {
+
+  data.frame(
+    Tipo = ifelse(is_directed(g), "Dirigido", "No dirigido"),
+    Bipartito = ifelse(bipartito, "Sí", "No"),
+    Orden = gorder(g),
+    'Tamaño' = gsize(g),
+    Conectado = ifelse(
+      is_connected(g, mode = "weak"),
+      "Sí",
+      "No"
+    ),
+    Componentes = components(g, mode = "weak")$no,
+    Densidad = round(edge_density(g), 4),
+    Grado_medio = round(mean(degree(g)), 2)
+  )
+}
+
+tabla <- rbind(
+  "Conceptos" = resumen_red(g_conceptos),
+  "Cursos-Conceptos" = resumen_red(g_bip, bipartito = TRUE)
+)
+
+```
+
+```{r tresumen, tab.cap="Tabla resumen de los 2 grafos"}
+tabla %>% 
+  kableExtra::kbl(
+    caption = "Tabla resumen de los 2 grafos",
+    digits = 3
+  ) %>% 
+  kableExtra::kable_minimal()
+```
+
++ **Densidad:** La densidad es muy baja en ambas redes (0.005 y 0.007), lo cual es entendible, debido a que en la red de conceptos no todos los conceptos dependen de todos los demás, únicamente existen relaciones de prerrequisito cuando son necesarias. Y por otro lado en la red bipartita un curso solamente aborda una pequeña fracción del total de conceptos disponibles. En conclusión ambas redes son dispersas.
+
++ **Grado promedio:** El grado promedio es bastante similar y este indica que, en promedio, cada nodo mantiene únicamente dos o tres relaciones con otros nodos, reforzando la idea de una estructura poco densa.
+
++ **Conectividad:** Ninguna de las dos redes es conectada, sin embargo el número de componentes de ambas es muy diferente, mientras que la red de conceptos posee únicamente 6 componentes, la red cursos–conceptos posee 38 componentes, mostrando una fragmentación mucho mayor, entonces en la red de conceptos se puede pensar que la mayor parte del conocimiento se organiza en unos pocos bloques relativamente grandes.
+
+
+# Red de conceptos
+
+```{r fconceptos, fig.cap="Visualización de la red de conceptos", fig.align='center'}
+plot(
+  g_conceptos,
+  layout = lay,
+  vertex.color = V(g_conceptos)$color,
+  vertex.size = V(g_conceptos)$size,
+  vertex.frame.color = "grey30",
+  edge.arrow.size = .25,
+  edge.color = "grey75",
+  vertex.label = ""
+)
+```
+
+
+
++ **Color de los nodos**: representa el **nivel conceptual** del concepto dentro de la red de prerrequisitos, calculado como la **distancia mínima** desde los conceptos sin prerrequisitos. Los colores oscuros corresponden a conceptos fundacionales, mientras que los colores claros representan conceptos más avanzados.
+
++ **Tamaño de los nodos**: proporcional al **grado de salida**, es decir, al número de conceptos que dependen directamente de cada concepto.
+
+
+En general, este grafo ya transmite una idea importante: el conocimiento no aparece como una lista de conceptos aislados, sino como una red jerárquica de dependencias donde existen conceptos fundamentales que sirven de base para múltiples rutas de aprendizaje y otros conceptos especializados que solo pueden abordarse después de recorrer varios prerrequisitos. Esa es precisamente la interpretación que se espera de una red concepto–concepto.
+
+# Red bipartita entre cursos y conceptos
+
+```{r fbipartita, fig.cap="Visualización de la red bipartita entre cursos y conceptos", fig.align='center'}
+set.seed(1238)
+plot(
+  g_bip,
+  vertex.label.cex = 0.6,
+  vertex.label="",
+  edge.color = "grey70",
+  layout = layout_with_fr(g_bip)
+)
+```
+En esta red los nodos cuadrados representan los cursos y los nodos circulares representan los conceptos.
+
+Una arista indica que un determinado concepto se aborda dentro de un curso.
+
+Para facilitar la interpretación:
+
++ Cuadrados azules: **cursos obligatorios**.
++ Cuadrados rojos: **cursos optativos**.
++ Círculos grises: **conceptos**.
++ El tamaño de los conceptos es proporcional al número de cursos en los que aparecen.
+
+La red bipartita evidencia que la mayoría de los cursos presentan conjuntos de conceptos propios, formando estructuras tipo estrella donde un curso se relaciona principalmente con contenidos exclusivos. Sin embargo, también se identifican conceptos compartidos entre diferentes asignaturas, los cuales generan conexiones entre cursos obligatorios y optativos. Estos conceptos pueden interpretarse como ejes transversales del currículo, al aparecer en múltiples espacios académicos y facilitar la integración del conocimiento. Por otra parte, el aislamiento del curso de Seminario responde a la ausencia de un programa analítico con conceptos definidos y no a una falta de relación con el resto del plan de estudios.
+
+
+# SBM
+
+
+```{r}
+metricas_conceptos <- data.frame(
+  ID_concepto = V(g_conceptos)$name,
+  grado_entrada = degree(g_conceptos, mode = "in"),
+  grado_salida = degree(g_conceptos, mode = "out"),
+  grado = degree(g_conceptos),
+  betweenness = betweenness(g_conceptos, directed = TRUE),
+  nivel = V(g_conceptos)$nivel
+)
+```
+
+
+```{r}
+
+
+A <- as.matrix(
+  as_adjacency_matrix(
+    g_conceptos,
+    sparse = FALSE
+  )
+)
+
+bm <- BM_bernoulli(
+  membership_type = "SBM",
+  adj = A,
+  plotting = ""
+)
+
+bm$estimate()
+
+plot(bm$ICL)
+best <- which.max(bm$ICL)
+grupos <- bm$memberships[[best]]$Z
+
+```
+
+
+# Louvain
+
+
+```{r}
+g_louvain <- as.undirected(
+  g_conceptos,
+  mode = "collapse"
+)
+
+com <- cluster_louvain(g_louvain)
+
+membership <- membership(com)
+
+table(membership)
+
+V(g_conceptos)$comunidad <- membership
+
+k <- length(unique(membership))
+
+cols <- viridis(
+  k,
+  option = "turbo"
+)
+
+V(g_conceptos)$color2 <- cols[membership]
+
+```
+
+```{r}
+plot(
+  g_conceptos,
+  layout = lay,
+  vertex.color = V(g_conceptos)$color2,
+  vertex.size = V(g_conceptos)$size,
+  vertex.frame.color = "grey30",
+  edge.color = "grey75",
+  edge.arrow.size = 0.25,
+  vertex.label = ""
+)
+```
+# Espacio latente
+
+```{r}
+relaciones2 <- relaciones |>
+  distinct(
+    ID_concepto_origen,
+    ID_concepto_destino,
+    .keep_all = TRUE
+  )
+net <- graph_from_data_frame(
+  relaciones2,
+  directed = TRUE
+)
+net <- asNetwork(net)
+
+set.seed(2103)
+
+#lsm <- ergmm(
+#  net ~ euclidean(d = 2),
+#)
+
+#saveRDS(
+#  lsm,
+#  file = "modelo_espacio_latente.rds"
+#)
+
+
+```
+
+
+
+
+
+# Algoritmo de inferencia de prerrequisitos curriculares
+
+```{r}
+conceptos_relaciones <- relaciones %>%
+  left_join(
+    curso_concepto %>%
+      select(ID_curso, ID_concepto),
+    by = c("ID_concepto_origen" = "ID_concepto")
+  ) %>%
+  rename(Curso_origen = ID_curso)
+
+conceptos_relaciones <- conceptos_relaciones %>%
+  left_join(
+    curso_concepto %>%
+      select(ID_curso, ID_concepto),
+    by = c("ID_concepto_destino" = "ID_concepto")
+  ) %>%
+  rename(Curso_destino = ID_curso)
+
+conceptos_relaciones <- conceptos_relaciones %>%
+  filter(Curso_origen != Curso_destino)
+
+red_cursos <- conceptos_relaciones %>%
+  count(
+    Curso_origen,
+    Curso_destino,
+    name = "peso"
+  ) %>%
+  arrange(desc(peso))
+
+red_cursos <- red_cursos %>%
+  left_join(
+    cursos %>%
+      select(ID_curso, curso),
+    by = c("Curso_origen" = "ID_curso")
+  ) %>%
+  rename(Nombre_origen = curso) %>%
+  left_join(
+    cursos %>%
+      select(ID_curso, curso),
+    by = c("Curso_destino" = "ID_curso")
+  ) %>%
+  rename(Nombre_destino = curso)
+
+
+n_conceptos <- curso_concepto %>%
+  distinct(ID_curso, ID_concepto) %>%
+  count(
+    ID_curso,
+    name = "n_conceptos"
+  )
+
+red_cursos <- conceptos_relaciones %>%
+  count(
+    Curso_origen,
+    Curso_destino,
+    name = "n_relaciones"
+  )
+
+red_cursos <- red_cursos %>%
+  left_join(
+    n_conceptos,
+    by = c(
+      "Curso_destino" = "ID_curso"
+    )
+  ) %>%
+  mutate(
+    peso = n_relaciones / n_conceptos
+  )
+
+g_cursos <- graph_from_data_frame(
+  red_cursos,
+  directed = TRUE,
+  vertices = cursos
+)
+
+V(g_cursos)$size <- scales::rescale(
+  degree(g_cursos, mode = "out"),
+  to = c(8,20)
+)
+
+niveles <- unique(cursos$componente)
+
+cols <- setNames(
+  RColorBrewer::brewer.pal(length(niveles),"Set3"),
+  niveles
+)
+
+V(g_cursos)$color <-
+  cols[V(g_cursos)$componente]
+
+E(g_cursos)$width <- scales::rescale(
+  E(g_cursos)$peso,
+  to = c(1,8)
+)
+
+g_cursos2 <- delete_edges(
+  g_cursos,
+  E(g_cursos)[peso < quantile(E(g_cursos)$peso,.75)]
+)
+layoutgcursos <- layout_with_sugiyama(g_cursos)
+plot(
+  g_cursos,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.label=""
+)
+
+
+```
+
+```{r}
+set.seed(1302)
+
+plot(
+  g_cursos,
+  edge.arrow.size = .35,
+  edge.color = "grey70",
+  vertex.label=""
+)
+```
+```{r}
+
+
+```
+
+
+
