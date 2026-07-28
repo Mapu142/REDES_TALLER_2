@@ -1,6 +1,5 @@
 ---
-title: ANÁLISIS DE CONOCIMIENTO EN LA CARRERA DE ESTADÍSTICA DE LA UNIVERSIDAD NACIONAL
-  DE COLOMBIA
+title: Análisis de la estructura del conocimiento en la carrera de Estadística de la Universidad Nacional de Colombia sede Bogotá
 author: "María Paula Camargo Rincón"
 date: "2026-07-26"
 output:
@@ -10,20 +9,60 @@ output:
     toc_float: true
     number_sections: true
     code_folding: hide
-css: estilos.css  
+css: estilos.css 
+bibliography: BIBLIOGRAFIA.bib
 ---
 
 
 # Introducción
 
+El diseño de un plan de estudios constituye un elemento fundamental en la formación académica, ya que establece la secuencia en la que los estudiantes adquieren y consolidan los conocimientos necesarios para su desarrollo profesional. Una adecuada definición de las relaciones de prerrequisito entre asignaturas favorece una progresión coherente del aprendizaje y contribuye a fortalecer la articulación entre los diferentes componentes curriculares.
+
+En el contexto del programa académico objeto de este estudio, actualmente se encuentra en desarrollo un proceso de actualización curricular orientado a la construcción de un nuevo pensum. En este escenario, resulta de interés disponer de herramientas que permitan analizar objetivamente la estructura del conocimiento impartido en las asignaturas y generar evidencia que apoye la definición de relaciones de dependencia entre ellas.
+
+Con este propósito, en este trabajo se modela el conjunto de conceptos abordados en las asignaturas como una red, donde los nodos representan conceptos y las aristas representan relaciones de dependencia conceptual. Sobre esta representación se aplican diferentes metodologías de análisis de redes, incluyendo el modelo de bloques estocásticos (Stochastic Block Model, SBM), el algoritmo de detección de comunidades de Louvain y los modelos de espacio latente. Estas técnicas permiten identificar grupos de conceptos estrechamente relacionados y estudiar la organización estructural del conocimiento dentro del currículo.
+
+Finalmente, a partir de la estructura conceptual identificada y de la asociación entre conceptos y asignaturas, se analizan las posibles relaciones de prerrequisito entre cursos. De esta manera, el estudio proporciona una aproximación basada en datos para apoyar el proceso de diseño curricular, ofreciendo una perspectiva complementaria a la experiencia de los expertos académicos encargados de la construcción del nuevo plan de estudios.
+
 # Bases de datos
 
-La base de datos fue construida a partir de la información obtenida en (https://diracad.bogota.unal.edu.co/recursos/pdf/unal-aspirante/PEP/PEP-estadistica.pdf), el cuál indica las materias que se ofertaban y a que componente pertenecían, además de esto se uso de referencia para la información obtenida de los conceptos la pagina de "buscador de cursos" (https://sia.unal.edu.co/Catalogo/facespublico/public/servicioPublico.jsf;PortalJSESSION=9lufb8gy-W6LzWJjv_WKh5VhEEDkhbwki1AQy5tD171Z-1NcvMru!1161720672?taskflowId=task-flow-AC_CatalogoAsignaturas)
-encontrando que no todas la materias previstas en el pep mencionado anteriormente estaban vigentes, además de eso en busca de encontrar todas las materias incluso aquellas que ya no se ofertan se uso uso de la página de "contenido de asignaturas" (https://siabog.unal.edu.co/academia/apoyo-administrativo/ConsultaContenidos.do), encontrando en ella algunos programas o descripciones de algunos cursos faltantes.
+La base de datos utilizada en este trabajo fue construida a partir de información oficial de la Universidad Nacional de Colombia. Como punto de partida se empleó el Proyecto Educativo del Programa (PEP) de la carrera de Estadística, en el cual se identificaron las asignaturas del plan de estudios, el componente curricular al que pertenecen, el número de créditos y su carácter obligatorio o electivo [@pep_estadistica].
 
-Se realizo 4 tablas resumiendo l información obtenida:
+Posteriormente, para identificar los conceptos desarrollados en cada asignatura, se consultó el [@Buscador de Cursos] de la Universidad Nacional de Colombia [@catalogo_asignaturas], donde se obtuvieron las descripciones oficiales de las asignaturas vigentes. Durante este proceso se evidenció que algunas asignaturas incluidas en el PEP ya no se encontraban disponibles en el catálogo actual.
 
-Hoja 1: 'CONCEPTOS'. en esta tabla tengo el Id del concepto, el nombre del concepto y una descripción de este. Hoja 2: 'CONCEPTOS_RELACIONES', en esta tabla tengo el id origen del concepto, el id destino del concepto, donde la relación indica que hay que saber del concepto origen para entender o aprender el concepto destino. Hoja 3: 'CURSOS', en esta tabla tengo el id del curso, el nombre del curso, el componente al que pertenece (los componentes son: APLICACIÓN ESTADÍSTICA, COMPLEMENTACIÓN ESTADÍSTICA, COMPLEMENTACIÓN MATEMÁTICA, COMUNICACIÓN, CONSOLIDACIÓN ESTADÍSTICA, FUNDAMENTACIÓN EN CIENCIAS, FUNDAMENTACIÓN MATEMÁTICO-ESTADÍSTICA, GUARDA Y FLUJO DE DATOS, METODOLOGÍA, NÚCLEO ESTADÍSTICO y PROGRAMACIÓN.) la cantidad de créditos, la cual oscila entre 2 y 4, y si es o no obligatoria Hoja 4: 'CURSOS-CONCEPTOS', en esta tengo el id del curso, el id del concepto, y el rol del concepto (introduce o desarrolla) acá relaciono los conceptos a los cursos es decir en un curso A se ven los conceptos 1,2 y 3 pero en un curso B se ven los conceptos 3,4 y 7.
+Con el propósito de recuperar la mayor cantidad posible de información histórica y completar la base de datos, también se consultó el repositorio de [@contenidos_asignaturas] de la Universidad Nacional de Colombia [@contenidos_asignaturas]. Esta fuente permitió obtener programas académicos y descripciones de algunas asignaturas que ya no se ofertan, pero que forman parte del plan de estudios considerado en esta investigación.
+
+A partir de la información recopilada se realizó un proceso de extracción y organización de los contenidos conceptuales de cada asignatura, construyéndose posteriormente las relaciones de dependencia entre conceptos y su asociación con los respectivos cursos. Como resultado se obtuvo una base de datos relacional compuesta por cuatro tablas principales.
+
+## Estructura de la base de datos
+
+La base de datos está conformada por las siguientes cuatro tablas:
+
+- **CONCEPTOS**: contiene el identificador único de cada concepto, el nombre del concepto y una breve descripción de su contenido.
+
+- **CONCEPTOS_RELACIONES**: almacena las relaciones de dependencia entre conceptos. Cada registro está compuesto por un concepto de origen y un concepto de destino, donde la relación indica que el concepto de origen constituye un conocimiento previo necesario para comprender el concepto de destino.
+
+- **CURSOS**: registra la información general de cada asignatura, incluyendo un identificador único, el nombre del curso, el componente curricular al que pertenece, el número de créditos y si corresponde a una asignatura obligatoria o electiva.
+
+Las cuatro tablas constituyen una representación relacional del conocimiento del programa de Estadística y sirven como insumo para la construcción de las redes de conceptos y de cursos analizadas en los capítulos posteriores.
+
+
+**Los componentes curriculares considerados son**:
+
+- Aplicación Estadística
+- Complementación Estadística
+- Complementación Matemática
+- Comunicación
+- Consolidación Estadística
+- Fundamentación en Ciencias
+- Fundamentación Matemático--Estadística
+- Guarda y Flujo de Datos
+- Metodología
+- Núcleo Estadístico
+- Programación
+
+
+- **CURSOS_CONCEPTOS**: relaciona cada asignatura con los conceptos que en ella se abordan. Además del identificador del curso y del concepto, esta tabla incluye el rol del concepto dentro de la asignatura, clasificándolo como *introduce* cuando el concepto es presentado por primera vez, o *desarrolla* cuando el curso profundiza conocimientos previamente introducidos. Esta estructura permite que un mismo concepto pueda estar asociado a varias asignaturas, reflejando la continuidad y profundización del conocimiento a lo largo del plan de estudios.
 
 
 ```{r librerias, message=FALSE, warning=FALSE}
@@ -1238,7 +1277,40 @@ tabla_proximidad %>%
 
 # Algoritmo de inferencia de prerrequisitos curriculares {.tabset}
 
-A partir de la red conceptual se reconstruye una red de dependencias entre asignaturas y se compara con el plan curricular oficial.
+La red de cursos se construyó a partir de la red de relaciones entre conceptos y de la asignación de cada concepto a una asignatura. El procedimiento implementado consta de las siguientes etapas:
+
+1. **Asignación del curso de origen y destino**
+
+Cada relación entre conceptos ($c_{i},c_{j}$) se enriqueció identificando la asignatura a la que pertenece cada concepto. Para ello se realizaron dos uniones (*left join*) con la tabla de asociación curso–concepto. Como resultado, cada relación quedó representada como
+
+$$
+(Curso_{i},Concepto_{i},Curso_{j}, Concepto_{j})
+$$
+
+2. **Eliminación de relaciones internas**
+
+Se descartaron las relaciones en las que ambos conceptos pertenecían al mismo curso ($i=j$)
+
+3. **Conteo de relaciones entre cursos**
+
+Posteriormente se contabilizó el número de relaciones conceptuales existentes entre cada par ordenado de cursos.
+
+Si existen $r_{ij}$ relaciones cuyos conceptos parten del curso $i$ hacia el curso $j$, entonces
+
+$$
+r_{ij}=|\{(c_a,c_b):c_a \in i, c_b \in j\}|
+$$
+
+4. **Normalización por el tamaño del curso destino**
+
+Como las asignaturas contienen diferentes cantidades de conceptos, utilizar únicamente el número de relaciones favorecería a los cursos más grandes. Para evitar este sesgo, se calculó el número de conceptos de cada curso destino, $n_j=$número de conceptos del curso j, y se definió el peso de la arista como
+
+$$
+w_{ij}=\frac{r_{ij}}{n_{j}}
+$$
+
+De esta manera, el peso representa la proporción de conceptos del curso destino que dependen de conocimientos provenientes del curso origen.
+
 
 Para la visualización de la red completa se uso la componente curricular para dar el color, sin embargo se uso el algoritmo de Louvain para generar comunidades **de los cursos** así como antes se analizaron las más grandes.
 
@@ -1411,7 +1483,7 @@ plot(
 
 ### Componente 1 (Fundamentación matemática)
 
-```{r}
+```{r fig.height=14}
 layoutgcursos <- layout_with_sugiyama(g1)$layout
 V(g1)$size <- scales::rescale(
   degree(g1, mode = "all"),
@@ -1439,10 +1511,18 @@ vertex.label.color = "black"
 )
 ```
 
+Aunque el grafo obtenido es bastante similar al pensum vigente, se observa una diferencia relevante en el componente de análisis:
+
++ En el plan de estudios actual, Introducción al análisis real y Cálculo de ecuaciones diferenciales ordinarias pertenecen al mismo componente y cualquiera de las dos asignaturas permite cumplir el requisito de créditos correspondiente. Sin embargo, el modelo ubica a Introducción al análisis real como un nodo más central, conectado con un mayor número de asignaturas posteriores. Esto sugiere que, para estudiantes que únicamente necesiten cursar una asignatura del componente, Introducción al análisis real podría aportar una base conceptual más amplia y facilitar el acceso a conocimientos utilizados en cursos posteriores.
+
++ Una diferencia respecto al pensum actual es que el algoritmo propone que Programación y métodos numéricos dependa tanto de Álgebra lineal básica como de Álgebra matricial, mientras que en el currículo vigente únicamente se exige Álgebra lineal básica. Esto puede interpretarse como una evidencia de que los contenidos de álgebra matricial constituyen un soporte conceptual importante para comprender algunos de los métodos desarrollados en la asignatura, aunque dicha relación no se encuentre formalizada como prerrequisito.
+
++ Otra diferencia importante se observa en las asignaturas Mecánica newtoniana y Fundamentos de física moderna. En el pensum vigente estas materias no tienen prerrequisitos formales; sin embargo, el modelo propone como prerrequisito Cálculo de ecuaciones diferenciales ordinarias. Esta relación resulta consistente con los contenidos de ambas asignaturas, ya que numerosos modelos físicos se describen mediante ecuaciones diferenciales, tanto en la formulación de la mecánica clásica como en diversos problemas de la física moderna. En consecuencia, el algoritmo identifica una dependencia conceptual que podría facilitar la comprensión de estos cursos, aunque actualmente no se encuentre establecida en la estructura curricular.
+
 
 ### Componente 2 (Fundamentación estadística)
 
-```{r}
+```{r fig.height=14}
 layoutgcursos <- layout_with_sugiyama(g2)$layout
 V(g2)$size <- scales::rescale(
   degree(g2, mode = "all"),
@@ -1471,10 +1551,12 @@ vertex.label.color = "black"
 )
 ```
 
+El algoritmo sugiere que la asignatura Indicadores sociales debería cursarse después de una materia que proporcione los fundamentos de la inferencia estadística. Aunque el plan de estudios vigente permite cursarla sin este antecedente, la construcción e interpretación de indicadores sociales requiere comprender conceptos como estimación, error de muestreo, intervalos de confianza e inferencia sobre poblaciones. En este sentido, una asignatura como Probabilidad y Estadística Fundamental, en la que se introducen estos conceptos, podría constituir un prerrequisito conceptual suficiente. Si bien un curso de Inferencia Estadística proporcionaría una formación más profunda, no resulta estrictamente necesario para alcanzar los objetivos de la asignatura.
+
 
 ### Componente 3 (Muestreo)
 
-```{r}
+```{r fig.height=14}
 layoutgcursos <- layout_with_sugiyama(g3)$layout
 V(g3)$size <- scales::rescale(
   degree(g3, mode = "all"),
@@ -1504,9 +1586,12 @@ vertex.label.color = "black"
 ```
 
 
+Una diferencia llamativa corresponde a la relación entre Diseño de experimentos y Muestreo estadístico. Mientras que el algoritmo ubica a Diseño de experimentos como antecedente de Muestreo estadístico, esta organización difiere de la secuencia que intuitivamente podría esperarse. Este resultado puede deberse a la estructura de las relaciones conceptuales registradas en la base de conocimiento, por lo que constituye un caso que amerita una revisión detallada de las dependencias definidas entre conceptos y de su asignación a las diferentes asignaturas.
+
+
 ### Componente 4 (Regresión)
 
-```{r}
+```{r fig.height=14}
 layoutgcursos <- layout_with_sugiyama(g4)$layout
 V(g4)$size <- scales::rescale(
   degree(g4, mode = "all"),
@@ -1535,9 +1620,12 @@ vertex.label.color = "black"
 )
 ```
 
+
+En la asignatura Estadística espacial, el plan de estudios vigente establece como único prerrequisito Análisis de regresión. No obstante, el algoritmo identifica que los cursos de Procesos estocásticos y Series de tiempo univariadas también constituyen antecedentes conceptuales relevantes. Esta relación es consistente con los fundamentos de la estadística espacial, en los que el análisis de la dependencia espacial puede abordarse desde la teoría de procesos estocásticos y comparte herramientas metodológicas con el análisis de series de tiempo, particularmente en el estudio de estructuras de dependencia y correlación. En consecuencia, el algoritmo sugiere que cursar estas asignaturas previamente podría proporcionar una base teórica más sólida para el desarrollo de los contenidos de estadística espacial.
+
 ### Componente 5 (Programación)
 
-```{r}
+```{r fig.height=14}
 layoutgcursos <- layout_with_sugiyama(g5)$layout
 V(g5)$size <- scales::rescale(
   degree(g5, mode = "all"),
@@ -1566,72 +1654,14 @@ vertex.label.color = "black"
 )
 ```
 
-### Componente 6
 
-```{r}
-layoutgcursos <- layout_with_sugiyama(g6)$layout
-V(g6)$size <- scales::rescale(
-  degree(g6, mode = "all"),
-  to = c(18, 35)
-)
-V(g6)$label <- V(g6)$curso
-library(stringr)
-
-V(g6)$label <-
-  str_wrap(
-    V(g6)$curso,
-    width = 14
-  )
-plot(
-  g6,
-  layout=layoutgcursos,
-  edge.color = "grey70",
-  vertex.frame.color = NA,
-  edge.arrow.size = .45,
-edge.width = scales::rescale(E(g6)$peso, c(1.5,6)),
-edge.color = "grey55",
-edge.curved = .05,
-vertex.label.cex = .6,
-vertex.label.family = "sans",
-vertex.label.color = "black"
-)
-```
+El algoritmo identifica que Minería de datos debería cursarse después de Programación en lenguajes estadísticos y Bases de datos. En el plan de estudios vigente, esta asignatura no posee prerrequisitos formales; sin embargo, la dependencia propuesta resulta consistente con sus contenidos. El análisis de grandes volúmenes de datos requiere competencias en programación para la implementación de algoritmos y el manejo de librerías especializadas, así como conocimientos en bases de datos para la extracción, consulta y preparación de la información. En este sentido, el algoritmo sugiere que estos cursos proporcionan herramientas fundamentales para el desarrollo de la asignatura.
 
 
-### Componentes 2 y 3
-
-```{r}
-layoutgcursos <- layout_with_sugiyama(g23)$layout
-V(g23)$size <- scales::rescale(
-  degree(g23, mode = "all"),
-  to = c(18, 35)
-)
-V(g23)$label <- V(g23)$curso
-library(stringr)
-
-V(g23)$label <-
-  str_wrap(
-    V(g23)$curso,
-    width = 14
-  )
-plot(
-  g23,
-  layout=layoutgcursos,
-  edge.color = "grey70",
-  vertex.frame.color = NA,
-  edge.arrow.size = .45,
-edge.width = scales::rescale(E(g23)$peso, c(1.5,6)),
-edge.color = "grey55",
-edge.curved = .05,
-vertex.label.cex = .6,
-vertex.label.family = "sans",
-vertex.label.color = "black"
-)
-```
 
 ### Componentes 2 y 4
 
-```{r}
+```{r fig.height=14}
 layoutgcursos <- layout_with_sugiyama(g24)$layout
 V(g24)$size <- scales::rescale(
   degree(g24, mode = "all"),
@@ -1660,49 +1690,21 @@ vertex.label.color = "black"
 )
 ```
 
+En este componente también se observa que el algoritmo ubica Métodos no paramétricos después de Análisis de regresión, mientras que en el plan de estudios vigente esta asignatura tiene como prerrequisito Inferencia estadística. Esta diferencia resulta razonable, ya que dentro de los contenidos de Métodos no paramétricos se incluyen técnicas de regresión no paramétrica, lo que justifica la dependencia identificada por el algoritmo.
 
-### Componente 3 y 4
+Por otra parte, el algoritmo sitúa Análisis de regresión después de Estadística descriptiva y exploratoria. Sin embargo, este resultado debe interpretarse con cautela, pues la descripción oficial de esta asignatura incluye contenidos que abarcan no solo estadística descriptiva, sino también probabilidad, inferencia estadística e incluso regresión lineal. Como consecuencia, el algoritmo la identifica como una asignatura con una base conceptual mucho más amplia de la que su nombre sugiere y la ubica próxima a asignaturas de servicio como Bioestadística fundamental y Estadística social fundamental, cuyos contenidos, según la información oficial del plan de estudios, son muy similares. En este caso, la posición obtenida responde a la estructura de los contenidos registrados y no necesariamente a una recomendación sobre el orden óptimo de cursar las asignaturas.
 
-```{r}
-layoutgcursos <- layout_with_sugiyama(g34)$layout
-V(g34)$size <- scales::rescale(
-  degree(g34, mode = "all"),
-  to = c(18, 35)
-)
-V(g34)$label <- V(g34)$curso
-library(stringr)
-
-V(g34)$label <-
-  str_wrap(
-    V(g34)$curso,
-    width = 14
-  )
-plot(
-  g34,
-  layout=layoutgcursos,
-  edge.color = "grey70",
-  vertex.frame.color = NA,
-  edge.arrow.size = .45,
-edge.width = scales::rescale(E(g34)$peso, c(1.5,6)),
-edge.color = "grey55",
-edge.curved = .05,
-vertex.label.cex = .6,
-vertex.label.family = "sans",
-vertex.label.color = "black"
-)
-```
 
 
 # Conclusiones
 
-+ Con el modelo **SBM** comprobamos que el conocimiento del pensum de la carrera de estadística de la universidad Nacional forma una estructura integrada. 
++ El algoritmo basado en **Modelos de Bloques Estocásticos** (SBM) permitió identificar que el conjunto de asignaturas del programa de Estadística de la Universidad Nacional presenta una estructura altamente integrada, evidenciando que los conceptos se organizan en comunidades temáticas con relaciones coherentes entre sí.
 
-+ Para futuros trabajos es mejor definir de forma más estricta los cursos, para evitar resultados como ver análisis de regresión despues de estadística descriptiva y exploratoria, debido a la relaicón que hay con los conceptos pues estos se imparten de forma superficial en descriptiva, más sin imbargo estan las respectivas materias de probabilidad e inferencia para profundizar más en los conceptos que conllevan a regresión.
++ La calidad de los resultados obtenidos depende directamente de la definición de los conceptos y de las relaciones establecidas entre ellos. En particular, asignaturas cuyas descripciones incluyen contenidos introductorios de varias áreas pueden generar dependencias que no reflejan necesariamente la secuencia curricular deseada. Un ejemplo de ello es la ubicación de Análisis de regresión después de Estadística descriptiva y exploratoria, resultado que se explica porque esta última, según la descripción oficial del curso, incluye conceptos básicos de probabilidad, inferencia y regresión lineal. En trabajos futuros sería conveniente definir con mayor precisión el alcance de cada concepto y el nivel de profundidad con el que se aborda en cada asignatura.
 
-+ El pensum que se tiene hasta el momento es bastante correcto y preciso, sin embargo se evidenció posibles mejoras en los prerrequisitos de otras materias que hasta el momento han sido "flexibles"
++ En términos generales, el algoritmo reproduce de manera satisfactoria la estructura del pensum vigente, lo que constituye una evidencia de la consistencia del diseño curricular actual. No obstante, también identifica dependencias conceptuales que no se encuentran formalizadas como prerrequisitos, como ocurre en asignaturas como Minería de datos, Estadística espacial, Programación y métodos numéricos o algunas asignaturas del área de física. Estos resultados pueden servir como insumo para futuras revisiones curriculares o como recomendaciones para que los estudiantes planifiquen de manera más adecuada la secuencia de cursos que desean tomar.
 
-
-
++ La metodología propuesta demuestra que es posible utilizar técnicas de análisis de redes para estudiar la estructura conceptual de un plan de estudios y apoyar la identificación de prerrequisitos entre asignaturas. En este sentido, el algoritmo no busca reemplazar el criterio académico empleado en el diseño curricular, sino proporcionar una herramienta objetiva que complemente dicho proceso mediante el análisis de las dependencias conceptuales existentes entre los cursos.
 
 
 # Referencias
