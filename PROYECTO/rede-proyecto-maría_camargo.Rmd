@@ -26,7 +26,7 @@ Se realizo 4 tablas resumiendo l información obtenida:
 Hoja 1: 'CONCEPTOS'. en esta tabla tengo el Id del concepto, el nombre del concepto y una descripción de este. Hoja 2: 'CONCEPTOS_RELACIONES', en esta tabla tengo el id origen del concepto, el id destino del concepto, donde la relación indica que hay que saber del concepto origen para entender o aprender el concepto destino. Hoja 3: 'CURSOS', en esta tabla tengo el id del curso, el nombre del curso, el componente al que pertenece (los componentes son: APLICACIÓN ESTADÍSTICA, COMPLEMENTACIÓN ESTADÍSTICA, COMPLEMENTACIÓN MATEMÁTICA, COMUNICACIÓN, CONSOLIDACIÓN ESTADÍSTICA, FUNDAMENTACIÓN EN CIENCIAS, FUNDAMENTACIÓN MATEMÁTICO-ESTADÍSTICA, GUARDA Y FLUJO DE DATOS, METODOLOGÍA, NÚCLEO ESTADÍSTICO y PROGRAMACIÓN.) la cantidad de créditos, la cual oscila entre 2 y 4, y si es o no obligatoria Hoja 4: 'CURSOS-CONCEPTOS', en esta tengo el id del curso, el id del concepto, y el rol del concepto (introduce o desarrolla) acá relaciono los conceptos a los cursos es decir en un curso A se ven los conceptos 1,2 y 3 pero en un curso B se ven los conceptos 3,4 y 7.
 
 
-```{r}
+```{r librerias, message=FALSE, warning=FALSE}
 library(readxl)
 library(igraph)
 library(dplyr)
@@ -36,6 +36,11 @@ library(tidyr)
 library(network)
 library(latentnet)
 library(intergraph)
+library(ggplot2)
+library(ggrepel)
+library(stringr)
+library(kableExtra)
+
 
 ```
 
@@ -46,6 +51,8 @@ conceptos <- read_excel(
   "BASES.xlsx",
   sheet = "CONCEPTOS"
 )
+
+conceptos$ID_concepto <- as.character(conceptos$ID_concepto)
 
 relaciones <- read_excel(
   "BASES.xlsx",
@@ -89,7 +96,7 @@ lay <- layout_with_sugiyama(
   g_conceptos
 )$layout
 
-g_louvain <- as.undirected(
+g_louvain <- as_undirected(
   g_conceptos,
   mode = "collapse"
 )
@@ -97,8 +104,6 @@ g_louvain <- as.undirected(
 com <- cluster_louvain(g_louvain)
 
 membership <- membership(com)
-
-table(membership)
 
 V(g_conceptos)$comunidad <- membership
 
@@ -271,22 +276,12 @@ Para facilitar la interpretación:
 La red bipartita evidencia que la mayoría de los cursos presentan conjuntos de conceptos propios, formando estructuras tipo estrella donde un curso se relaciona principalmente con contenidos exclusivos. Sin embargo, también se identifican conceptos compartidos entre diferentes asignaturas, los cuales generan conexiones entre cursos obligatorios y optativos. Estos conceptos pueden interpretarse como ejes transversales del currículo, al aparecer en múltiples espacios académicos y facilitar la integración del conocimiento. Por otra parte, el aislamiento del curso de Seminario responde a la ausencia de un programa analítico con conceptos definidos y no a una falta de relación con el resto del plan de estudios.
 
 
-# SBM
+# Modelos de comunidades {.tabset}
+
+## SBM
 
 
-```{r}
-metricas_conceptos <- data.frame(
-  ID_concepto = V(g_conceptos)$name,
-  grado_entrada = degree(g_conceptos, mode = "in"),
-  grado_salida = degree(g_conceptos, mode = "out"),
-  grado = degree(g_conceptos),
-  betweenness = betweenness(g_conceptos, directed = TRUE),
-  nivel = V(g_conceptos)$nivel
-)
-```
-
-
-```{r}
+```{r SBM, message=FALSE, include=FALSE}
 
 
 A <- as.matrix(
@@ -304,18 +299,26 @@ bm <- BM_bernoulli(
 
 bm$estimate()
 
-plot(bm$ICL)
 best <- which.max(bm$ICL)
 grupos <- bm$memberships[[best]]$Z
 
 ```
 
+```{r ICL, fig.align='center', fig.cap="Criterio ICL para las distintas cantidades de bloques"}
+plot(bm$ICL)
 
-# Louvain
+```
+
+El criterio ICL alcanzó su máximo para un único bloque, lo que indica que, bajo los supuestos del Stochastic Block Model, la red presenta una estructura global relativamente homogénea y no se identifican comunidades estadísticamente bien diferenciadas. Esto sugiere que los conceptos se encuentran altamente interconectados y que las fronteras entre áreas de conocimiento no son suficientemente marcadas para ser detectadas por un modelo probabilístico de bloques.
 
 
-```{r}
-g_louvain <- as.undirected(
+## Louvain {.tabset}
+
+El algoritmo de Louvain identificó 18 comunidades con una modularidad de 0.811, lo que indica una estructura comunitaria altamente marcada. Esto sugiere que los conceptos no se encuentran distribuidos de forma homogénea en la red, sino organizados en núcleos conceptuales con una elevada conectividad interna y relativamente pocas relaciones con conceptos pertenecientes a otras comunidades.
+
+
+```{r louvain}
+g_louvain <- as_undirected(
   g_conceptos,
   mode = "collapse"
 )
@@ -324,7 +327,16 @@ com <- cluster_louvain(g_louvain)
 
 membership <- membership(com)
 
-table(membership)
+tabla_comunidades <- table(membership) |>
+  as.data.frame() |>
+  rename(
+    comunidad = membership,
+    numero_conceptos = Freq
+  ) |>
+  mutate(
+    comunidad = as.integer(as.character(comunidad))
+  ) |>
+  arrange(desc(numero_conceptos))
 
 V(g_conceptos)$comunidad <- membership
 
@@ -337,7 +349,35 @@ cols <- viridis(
 
 V(g_conceptos)$color2 <- cols[membership]
 
+#modularity(com)
+
+tabla_comunidad <- tibble(
+  concepto = V(g_conceptos)$concepto,
+  comunidad = membership(com)
+) 
+
+
 ```
+
+
+### Comunidades
+
+Aunque las comunidades identificadas por Louvain no corresponden necesariamente a asignaturas individuales, sí representan núcleos conceptuales coherentes del currículo. En varios casos, una comunidad agrupa conceptos provenientes de diferentes cursos que comparten una misma función dentro del proceso de formación. Esto evidencia que la organización conceptual del plan de estudios trasciende la división administrativa de las asignaturas y refleja dependencias de conocimiento entre distintas áreas.
+
+```{r comunidades, tab.cap="Tamaño de las comunidades detectadas mediante el algoritmo de Louvain"}
+
+
+tabla_comunidades |>
+  kbl(
+    caption = "Tamaño de las comunidades detectadas mediante el algoritmo de Louvain.",
+    align = c("c", "c"),
+    digits = 0
+  ) |>
+  kable_minimal() |>
+  row_spec(0, bold = TRUE)
+```
+
+### Red total
 
 ```{r}
 plot(
@@ -351,10 +391,370 @@ plot(
   vertex.label = ""
 )
 ```
-# Espacio latente
+
+### Comunidad 2 (40 conceptos) {.tabset}
+
+Esta comunidad agrupa concepto de 4 materias: **cálculo diferencial en una variable, cálculo integral en una variable, algebra lineal** y **cálculo multivariado**. Por eso se podría considerar como un componente de fundamentación matemática.
+
+#### Gráfico
 
 ```{r}
-relaciones2 <- relaciones |>
+g1 <- induced_subgraph(
+    g_conceptos,
+    membership(com) == 2
+)
+
+layoutgcursos <- layout_with_sugiyama(g1)$layout
+V(g1)$size <- scales::rescale(
+  degree(g1, mode = "all"),
+  to = c(18, 35)
+)
+grado <- degree(g1, mode = "all")
+
+V(g1)$label <- ""
+
+idx <- order(grado, decreasing = TRUE)[1:5]
+
+V(g1)$label[idx] <- str_wrap(
+  V(g1)$concepto[idx],
+  width = 14
+)
+plot(
+  g1,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.frame.color = NA,
+  edge.arrow.size = .45,
+edge.width = scales::rescale(E(g1)$peso, c(1.5,6)),
+edge.color = "grey55",
+edge.curved = .05,
+vertex.label.cex = .6,
+vertex.label.family = "sans",
+vertex.label.color = "black"
+)
+```
+
+#### Tabla
+
+```{r tcom2, tab.cap="20 conceptos en la comunidad"}
+tabla_comunidad %>% 
+  dplyr::filter(comunidad==2) %>% 
+  head(20) %>% 
+  dplyr::select(concepto) %>% 
+  kableExtra::kbl(
+    caption = "20 conceptos en la comunidad",
+    align = c("c", "c"),
+    digits = 0
+  ) |>
+  kableExtra::kable_minimal() |>
+  row_spec(0, bold = TRUE)
+```
+
+
+### Comunidad 3 (27 conceptos){.tabset}
+
+Esta comunidad agrupa concepto de 3 materias: **análisis de regresión, diseño de experimentos** y **consultoría**. Por eso se podría considerar como un componente de modelamiento estadístico o metodología para el análisis estadístico
+
+#### Gráfico
+
+```{r}
+g1 <- induced_subgraph(
+    g_conceptos,
+    membership(com) == 3
+)
+
+layoutgcursos <- layout_with_sugiyama(g1)$layout
+V(g1)$size <- scales::rescale(
+  degree(g1, mode = "all"),
+  to = c(18, 35)
+)
+grado <- degree(g1, mode = "all")
+
+V(g1)$label <- ""
+
+idx <- order(grado, decreasing = TRUE)[1:5]
+
+V(g1)$label[idx] <- str_wrap(
+  V(g1)$concepto[idx],
+  width = 14
+)
+plot(
+  g1,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.frame.color = NA,
+  edge.arrow.size = .45,
+edge.width = scales::rescale(E(g1)$peso, c(1.5,6)),
+edge.color = "grey55",
+edge.curved = .05,
+vertex.label.cex = .6,
+vertex.label.family = "sans",
+vertex.label.color = "black"
+)
+```
+
+#### Tabla
+
+```{r tcom3, tab.cap="20 conceptos en la comunidad"}
+tabla_comunidad %>% 
+  dplyr::filter(comunidad==3) %>% 
+  head(20) %>% 
+  dplyr::select(concepto) %>% 
+  kableExtra::kbl(
+    caption = "20 conceptos en la comunidad",
+    align = c("c", "c"),
+    digits = 0
+  ) |>
+  kableExtra::kable_minimal() |>
+  row_spec(0, bold = TRUE)
+```
+
+
+
+### Comunidad 14 (22 conceptos) {.tabset}
+
+Esta comunidad agrupa conceptos de materias de **programación**, por lo que este componente es claramente de programación.
+
+#### Gráfico
+
+```{r}
+g1 <- induced_subgraph(
+    g_conceptos,
+    membership(com) == 14
+)
+
+layoutgcursos <- layout_with_sugiyama(g1)$layout
+V(g1)$size <- scales::rescale(
+  degree(g1, mode = "all"),
+  to = c(18, 35)
+)
+grado <- degree(g1, mode = "all")
+
+V(g1)$label <- ""
+
+idx <- order(grado, decreasing = TRUE)[1:5]
+
+V(g1)$label[idx] <- str_wrap(
+  V(g1)$concepto[idx],
+  width = 14
+)
+plot(
+  g1,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.frame.color = NA,
+  edge.arrow.size = .45,
+edge.width = scales::rescale(E(g1)$peso, c(1.5,6)),
+edge.color = "grey55",
+edge.curved = .05,
+vertex.label.cex = .6,
+vertex.label.family = "sans",
+vertex.label.color = "black"
+)
+```
+
+#### Tabla
+
+```{r tcom14, tab.cap="Conceptos en la comunidad"}
+tabla_comunidad %>% 
+  dplyr::filter(comunidad==14) %>% 
+  dplyr::select(concepto) %>% 
+  kableExtra::kbl(
+    caption = "Conceptos en la comunidad",
+    align = c("c", "c"),
+    digits = 0
+  ) |>
+  kableExtra::kable_minimal() |>
+  row_spec(0, bold = TRUE)
+```
+
+
+### Comunidad 5 (21 conceptos) {.tabset}
+
+Esta comunidad agrupa concepto de 4 materias: **bioestadística, indicadores sociales, epidemiología** y **probabilidad**, esto se puede deber a que comparten conceptos de probabilidad para su respectiva aplicación, por lo que este componente se puede considerar como uno de **fundamentos probabilísticos y aplicaciones en estadística oficial y salud**.
+
+
+#### gráfico
+
+```{r}
+g1 <- induced_subgraph(
+    g_conceptos,
+    membership(com) == 5
+)
+
+layoutgcursos <- layout_with_sugiyama(g1)$layout
+V(g1)$size <- scales::rescale(
+  degree(g1, mode = "all"),
+  to = c(18, 35)
+)
+grado <- degree(g1, mode = "all")
+
+V(g1)$label <- ""
+
+idx <- order(grado, decreasing = TRUE)[1:5]
+
+V(g1)$label[idx] <- str_wrap(
+  V(g1)$concepto[idx],
+  width = 14
+)
+plot(
+  g1,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.frame.color = NA,
+  edge.arrow.size = .45,
+edge.width = scales::rescale(E(g1)$peso, c(1.5,6)),
+edge.color = "grey55",
+edge.curved = .05,
+vertex.label.cex = .6,
+vertex.label.family = "sans",
+vertex.label.color = "black"
+)
+```
+
+
+#### Tabla
+
+```{r tcom5, tab.cap="Conceptos en la comunidad"}
+tabla_comunidad %>% 
+  dplyr::filter(comunidad==5) %>% 
+  dplyr::select(concepto) %>% 
+  kableExtra::kbl(
+    caption = "Conceptos en la comunidad",
+    align = c("c", "c"),
+    digits = 0
+  ) |>
+  kableExtra::kable_minimal() |>
+  row_spec(0, bold = TRUE)
+```
+
+
+### Comunidad 12 (18 conceptos){.tabset}
+
+Esta comunidad agrupa concepto principalmente de 2 materias: **métodos no paramétricos** e **inteligencia artificial**.
+
+#### Gráfico
+
+```{r}
+g1 <- induced_subgraph(
+    g_conceptos,
+    membership(com) == 12
+)
+
+layoutgcursos <- layout_with_sugiyama(g1)$layout
+V(g1)$size <- scales::rescale(
+  degree(g1, mode = "all"),
+  to = c(18, 35)
+)
+grado <- degree(g1, mode = "all")
+
+V(g1)$label <- ""
+
+idx <- order(grado, decreasing = TRUE)[1:5]
+
+V(g1)$label[idx] <- str_wrap(
+  V(g1)$concepto[idx],
+  width = 14
+)
+plot(
+  g1,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.frame.color = NA,
+  edge.arrow.size = .45,
+edge.width = scales::rescale(E(g1)$peso, c(1.5,6)),
+edge.color = "grey55",
+edge.curved = .05,
+vertex.label.cex = .6,
+vertex.label.family = "sans",
+vertex.label.color = "black"
+)
+```
+
+#### Tabla
+
+```{r tcom12, tab.cap="Conceptos en la comunidad"}
+tabla_comunidad %>% 
+  dplyr::filter(comunidad==12) %>% 
+  dplyr::select(concepto) %>% 
+  kableExtra::kbl(
+    caption = "Conceptos en la comunidad",
+    align = c("c", "c"),
+    digits = 0
+  ) |>
+  kableExtra::kable_minimal() |>
+  row_spec(0, bold = TRUE)
+```
+
+### Comunidad 1 (17 conceptos) {.tabset}
+
+Esta comunidad agrupa concepto principalmente de 2 materias: **algebra matricial** e **series de tiempo univariadas**, esto se puede deber al uso que se le da a la algebra matricial con los modelos (en general).
+
+#### Gráfico
+
+```{r}
+g1 <- induced_subgraph(
+    g_conceptos,
+    membership(com) == 2
+)
+
+layoutgcursos <- layout_with_sugiyama(g1)$layout
+V(g1)$size <- scales::rescale(
+  degree(g1, mode = "all"),
+  to = c(18, 35)
+)
+grado <- degree(g1, mode = "all")
+
+V(g1)$label <- ""
+
+idx <- order(grado, decreasing = TRUE)[1:5]
+
+V(g1)$label[idx] <- str_wrap(
+  V(g1)$concepto[idx],
+  width = 14
+)
+plot(
+  g1,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.frame.color = NA,
+  edge.arrow.size = .45,
+edge.width = scales::rescale(E(g1)$peso, c(1.5,6)),
+edge.color = "grey55",
+edge.curved = .05,
+vertex.label.cex = .6,
+vertex.label.family = "sans",
+vertex.label.color = "black"
+)
+```
+
+
+#### Tabla
+
+```{r tcom17, tab.cap="Conceptos en la comunidad"}
+tabla_comunidad %>% 
+  dplyr::filter(comunidad==1) %>% 
+  dplyr::select(concepto) %>% 
+  kableExtra::kbl(
+    caption = "Conceptos en la comunidad",
+    align = c("c", "c"),
+    digits = 0
+  ) |>
+  kableExtra::kable_minimal() |>
+  row_spec(0, bold = TRUE)
+```
+
+
+# Espacio latente {.tabset}
+
+
+Para las visualizaciones por componentes se utlizan las que anteriormente se habían encontrado con el algoritmo de *Louvain*.
+
+Mientras el algoritmo de Louvain identifica comunidades, con el modelo espacio latente podemos analizar mejor como se comportan estas comunidades dentro de sí, un resultado general es que no son homogeneas y en la mayoría se encuentran subgrupos de conceptos que normalmente le pertenecen a una materia.
+
+
+```{r}
+relaciones2 <- relaciones  %>% 
   distinct(
     ID_concepto_origen,
     ID_concepto_destino,
@@ -377,14 +777,470 @@ set.seed(2103)
 #  file = "modelo_espacio_latente.rds"
 #)
 
+lsm <- readRDS("modelo_espacio_latente.rds")
+
+coord <- as.data.frame(lsm$mkl$Z)
+
+coord$ID_concepto <- V(g_conceptos)$name
+coord$grado <- degree(g_conceptos)
+
+coord$comunidad <- factor(
+  membership(com)[coord$ID_concepto]
+)
+
+coord <- coord |>
+  left_join(
+    conceptos |>
+      select(ID_concepto, concepto),
+    by = c("ID_concepto" = "ID_concepto")
+  )
+
+coord$bt <- betweenness(g_conceptos)
+
+```
+
+## Red completa
+
+```{r}
+ggplot(
+  coord,
+  aes(
+    x = V1,
+    y = V2,
+    color = comunidad,
+    size = grado
+  )
+) +
+  geom_point(alpha = .85) +
+  scale_size(range = c(2,8)) +
+  labs(
+    x = "Dimensión latente 1",
+    y = "Dimensión latente 2",
+    color = "Comunidad",
+    size = "Grado"
+  ) +
+  guides(
+  colour = guide_legend(nrow = 2, direction = "vertical"),
+  size=guide_legend(nrow = 2, direction = "vertical")
+) +
+  theme_minimal(base_size = 13) +
+
+    theme(
+      legend.position = "bottom"
+    ) 
+
+
+```
+
+## Comunidad 2 (40 conceptos)
+
+Se observa que la comunidad no es homogénea y que hay varios subconjuntos de conceptos, por ejemplo podemos distinguir un subconjunto de cálculos, como lo es con **la integral, funciones** y **derivación**
+
+
+```{r}
+coord_c2 <- coord |>
+  dplyr::filter(comunidad == 2)
+
+
+etiquetas <- coord_c2 |>
+  slice_max(grado, n = 10)
+
+
+```
+
+```{r}
+ggplot(
+  coord_c2,
+  aes(
+    V1,
+    V2
+  )
+) +
+  geom_point(
+    aes(
+      size = grado,
+      color = bt
+    ),
+    alpha = .85
+  ) +
+  geom_text_repel(
+    data = etiquetas,
+    aes(label = concepto),
+    size = 3.5,
+    max.overlaps = Inf
+  ) +
+  scale_color_viridis_c(
+    option = "C"
+  ) +
+  scale_size(range = c(3, 9)) +
+  labs(
+    x = "Dimensión latente 1",
+    y = "Dimensión latente 2",
+    color = "Betweenness",
+    size = "Grado"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "bottom"
+  )
+```
+
+## Comunidad 3 (27 conceptos)
+
+Se observa que la comunidad no es homogénea y que hay varios subconjuntos de conceptos, por ejemplo se podría decir que hay algunos distintivos de muestreo agrupados, igualmente de regresión y consultoría.
+
+
+```{r}
+coord_c2 <- coord |>
+  dplyr::filter(comunidad == 3)
+
+
+etiquetas <- coord_c2 |>
+  slice_max(grado, n = 10)
+
+
+```
+
+```{r}
+ggplot(
+  coord_c2,
+  aes(
+    V1,
+    V2
+  )
+) +
+  geom_point(
+    aes(
+      size = grado,
+      color = bt
+    ),
+    alpha = .85
+  ) +
+  geom_text_repel(
+    data = etiquetas,
+    aes(label = concepto),
+    size = 3.5,
+    max.overlaps = Inf
+  ) +
+  scale_color_viridis_c(
+    option = "C"
+  ) +
+  scale_size(range = c(3, 9)) +
+  labs(
+    x = "Dimensión latente 1",
+    y = "Dimensión latente 2",
+    color = "Betweenness",
+    size = "Grado"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "bottom"
+  )
+```
+
+## Comunidad 14 (22 conceptos)
+
+```{r}
+coord_c2 <- coord |>
+  dplyr::filter(comunidad == 14)
+
+
+etiquetas <- coord_c2 |>
+  slice_max(grado, n = 3)
+
+
+```
+
+```{r}
+ggplot(
+  coord_c2,
+  aes(
+    V1,
+    V2
+  )
+) +
+  geom_point(
+    aes(
+      size = grado,
+      color = bt
+    ),
+    alpha = .85
+  ) +
+  geom_text_repel(
+    data = etiquetas,
+    aes(label = concepto),
+    size = 3.5,
+    max.overlaps = Inf
+  ) +
+  scale_color_viridis_c(
+    option = "C"
+  ) +
+  scale_size(range = c(3, 9)) +
+  labs(
+    x = "Dimensión latente 1",
+    y = "Dimensión latente 2",
+    color = "Betweenness",
+    size = "Grado"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "bottom"
+  )
+```
+
+## Comunidad 5 (21 conceptos)
+
+```{r}
+coord_c2 <- coord |>
+  dplyr::filter(comunidad == 5)
+
+
+etiquetas <- coord_c2 |>
+  slice_max(grado, n = 3)
+
+
+```
+
+```{r}
+ggplot(
+  coord_c2,
+  aes(
+    V1,
+    V2
+  )
+) +
+  geom_point(
+    aes(
+      size = grado,
+      color = bt
+    ),
+    alpha = .85
+  ) +
+  geom_text_repel(
+    data = etiquetas,
+    aes(label = concepto),
+    size = 3.5,
+    max.overlaps = Inf
+  ) +
+  scale_color_viridis_c(
+    option = "C"
+  ) +
+  scale_size(range = c(3, 9)) +
+  labs(
+    x = "Dimensión latente 1",
+    y = "Dimensión latente 2",
+    color = "Betweenness",
+    size = "Grado"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "bottom"
+  )
+```
+
+
+## Comunidad 12 (18 conceptos)
+
+```{r}
+coord_c2 <- coord |>
+  dplyr::filter(comunidad == 12)
+
+
+etiquetas <- coord_c2 |>
+  slice_max(grado, n = 4)
+
+
+```
+
+```{r}
+ggplot(
+  coord_c2,
+  aes(
+    V1,
+    V2
+  )
+) +
+  geom_point(
+    aes(
+      size = grado,
+      color = bt
+    ),
+    alpha = .85
+  ) +
+  geom_text_repel(
+    data = etiquetas,
+    aes(label = concepto),
+    size = 3.5,
+    max.overlaps = Inf
+  ) +
+  scale_color_viridis_c(
+    option = "C"
+  ) +
+  scale_size(range = c(3, 9)) +
+  labs(
+    x = "Dimensión latente 1",
+    y = "Dimensión latente 2",
+    color = "Betweenness",
+    size = "Grado"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "bottom"
+  )
+```
+
+## Comunidad 1 (17 conceptos)
+
+```{r}
+coord_c2 <- coord |>
+  dplyr::filter(comunidad == 1)
+
+
+etiquetas <- coord_c2 |>
+  slice_max(grado, n = 3)
+
+
+```
+
+```{r}
+ggplot(
+  coord_c2,
+  aes(
+    V1,
+    V2
+  )
+) +
+  geom_point(
+    aes(
+      size = grado,
+      color = bt
+    ),
+    alpha = .85
+  ) +
+  geom_text_repel(
+    data = etiquetas,
+    aes(label = concepto),
+    size = 3.5,
+    max.overlaps = Inf
+  ) +
+  scale_color_viridis_c(
+    option = "C"
+  ) +
+  scale_size(range = c(3, 9)) +
+  labs(
+    x = "Dimensión latente 1",
+    y = "Dimensión latente 2",
+    color = "Betweenness",
+    size = "Grado"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "bottom"
+  )
+```
+
+## Tabla de parejas proximas
+
+Las menores distancias obtenidas por el modelo corresponden en varios casos a conceptos pertenecientes a una misma línea temática (por ejemplo Convergencia–Distribuciones muestrales o Correspondencias simples y múltiples–Métodos de agrupamiento). Sin embargo, también aparecen pares sin relación disciplinar evidente. Esto ocurre porque algunos conceptos poseen muy pocas conexiones dentro de la red, de modo que el modelo de espacio latente no dispone de información suficiente para diferenciarlos y termina ubicándolos en posiciones prácticamente idénticas.
+
+```{r}
+D <- as.matrix(
+  dist(coord[, c("V1","V2")])
+)
+
+tabla_distancias <-
+  as.data.frame(as.table(D)) %>% 
+  rename(
+    i = Var1,
+    j = Var2,
+    distancia = Freq
+  ) %>% 
+  mutate(
+    i = as.integer(as.character(i)),
+    j = as.integer(as.character(j))
+  ) %>% 
+  filter(i < j)
+
+tabla_distancias$Concepto_A <-
+  coord$ID_concepto[
+    as.numeric(tabla_distancias$i)
+  ]
+
+tabla_distancias$Concepto_B <-
+  coord$ID_concepto[
+    as.numeric(tabla_distancias$j)
+  ]
+
+tabla_proximidad <-
+  tabla_distancias %>% 
+  arrange(distancia) %>% 
+  slice(1:10) %>% 
+  select(
+    Concepto_A,
+    Concepto_B,
+    distancia
+  )
+
+tabla_proximidad <-
+  tabla_proximidad %>% 
+  mutate(
+    Concepto_A = as.character(Concepto_A),
+    Concepto_B = as.character(Concepto_B)
+  ) %>% 
+  left_join(
+    conceptos %>% 
+      select(
+        ID_concepto,
+        concepto
+      ),
+    by = c(
+      "Concepto_A" = "ID_concepto"
+    )
+  ) %>% 
+  rename(
+    Nombre_A = concepto
+  ) %>% 
+  left_join(
+    conceptos %>% 
+      select(
+        ID_concepto,
+        concepto
+      ),
+    by = c(
+      "Concepto_B" = "ID_concepto"
+    )
+  ) %>% 
+  rename(
+    Nombre_B = concepto
+  ) %>% 
+  select(
+    Nombre_A,
+    Nombre_B,
+    distancia
+  )
+
+
+
+
 
 ```
 
 
+```{r parejas}
+tabla_proximidad %>% 
+  kableExtra::kbl(
+    caption = "Tabla 10 parejas proximas ",
+    digits = 5
+  ) %>% 
+  kableExtra::kable_minimal()
+```
 
 
+# Algoritmo de inferencia de prerrequisitos curriculares {.tabset}
 
-# Algoritmo de inferencia de prerrequisitos curriculares
+A partir de la red conceptual se reconstruye una red de dependencias entre asignaturas y se compara con el plan curricular oficial.
+
+Para la visualización de la red completa se uso la componente curricular para dar el color, sin embargo se uso el algoritmo de Louvain para generar comunidades **de los cursos** así como antes se analizaron las más grandes.
 
 ```{r}
 conceptos_relaciones <- relaciones %>%
@@ -460,6 +1316,10 @@ g_cursos <- graph_from_data_frame(
   vertices = cursos
 )
 
+com_cursos <- cluster_louvain(
+    as_undirected(g_cursos)
+)
+
 V(g_cursos)$size <- scales::rescale(
   degree(g_cursos, mode = "out"),
   to = c(8,20)
@@ -484,16 +1344,59 @@ g_cursos2 <- delete_edges(
   g_cursos,
   E(g_cursos)[peso < quantile(E(g_cursos)$peso,.75)]
 )
-layoutgcursos <- layout_with_sugiyama(g_cursos)
-plot(
-  g_cursos,
-  layout=layoutgcursos,
-  edge.color = "grey70",
-  vertex.label=""
+layoutgcursos <- layout_in_circle(g_cursos)
+
+
+g1 <- induced_subgraph(
+    g_cursos,
+    membership(com_cursos) == 1
 )
 
+g2 <- induced_subgraph(
+    g_cursos,
+    membership(com_cursos) == 5
+)
+
+g3 <- induced_subgraph(
+    g_cursos,
+    membership(com_cursos) == 9
+)
+
+g4 <- induced_subgraph(
+    g_cursos,
+    membership(com_cursos) == 2
+)
+
+g5 <- induced_subgraph(
+    g_cursos,
+    membership(com_cursos) == 4
+)
+
+g6 <- induced_subgraph(
+    g_cursos,
+    membership(com_cursos) == 3
+)
+
+g23 <- induced_subgraph(
+    g_cursos,
+    membership(com_cursos) %in% c(5,9)
+)
+
+g24 <- induced_subgraph(
+    g_cursos,
+    membership(com_cursos) %in% c(5,2)
+)
+
+g34 <- induced_subgraph(
+    g_cursos,
+    membership(com_cursos) %in% c(9,2)
+)
 
 ```
+
+
+### Red total
+
 
 ```{r}
 set.seed(1302)
@@ -505,10 +1408,304 @@ plot(
   vertex.label=""
 )
 ```
+
+### Componente 1 (Fundamentación matemática)
+
 ```{r}
+layoutgcursos <- layout_with_sugiyama(g1)$layout
+V(g1)$size <- scales::rescale(
+  degree(g1, mode = "all"),
+  to = c(18, 35)
+)
+V(g1)$label <- V(g1)$curso
 
-
+V(g1)$label <-
+  str_wrap(
+    V(g1)$curso,
+    width = 14
+  )
+plot(
+  g1,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.frame.color = NA,
+  edge.arrow.size = .45,
+edge.width = scales::rescale(E(g1)$peso, c(1.5,6)),
+edge.color = "grey55",
+edge.curved = .05,
+vertex.label.cex = .6,
+vertex.label.family = "sans",
+vertex.label.color = "black"
+)
 ```
+
+
+### Componente 2 (Fundamentación estadística)
+
+```{r}
+layoutgcursos <- layout_with_sugiyama(g2)$layout
+V(g2)$size <- scales::rescale(
+  degree(g2, mode = "all"),
+  to = c(18, 35)
+)
+V(g2)$label <- V(g2)$curso
+library(stringr)
+
+V(g2)$label <-
+  str_wrap(
+    V(g2)$curso,
+    width = 14
+  )
+plot(
+  g2,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.frame.color = NA,
+  edge.arrow.size = .45,
+edge.width = scales::rescale(E(g2)$peso, c(1.5,6)),
+edge.color = "grey55",
+edge.curved = .05,
+vertex.label.cex = .6,
+vertex.label.family = "sans",
+vertex.label.color = "black"
+)
+```
+
+
+### Componente 3 (Muestreo)
+
+```{r}
+layoutgcursos <- layout_with_sugiyama(g3)$layout
+V(g3)$size <- scales::rescale(
+  degree(g3, mode = "all"),
+  to = c(18, 35)
+)
+V(g3)$label <- V(g3)$curso
+library(stringr)
+
+V(g3)$label <-
+  str_wrap(
+    V(g3)$curso,
+    width = 14
+  )
+plot(
+  g3,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.frame.color = NA,
+  edge.arrow.size = .45,
+edge.width = scales::rescale(E(g3)$peso, c(1.5,6)),
+edge.color = "grey55",
+edge.curved = .05,
+vertex.label.cex = .6,
+vertex.label.family = "sans",
+vertex.label.color = "black"
+)
+```
+
+
+### Componente 4 (Regresión)
+
+```{r}
+layoutgcursos <- layout_with_sugiyama(g4)$layout
+V(g4)$size <- scales::rescale(
+  degree(g4, mode = "all"),
+  to = c(18, 35)
+)
+V(g4)$label <- V(g4)$curso
+library(stringr)
+
+V(g4)$label <-
+  str_wrap(
+    V(g4)$curso,
+    width = 14
+  )
+plot(
+  g4,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.frame.color = NA,
+  edge.arrow.size = .45,
+edge.width = scales::rescale(E(g4)$peso, c(1.5,6)),
+edge.color = "grey55",
+edge.curved = .05,
+vertex.label.cex = .6,
+vertex.label.family = "sans",
+vertex.label.color = "black"
+)
+```
+
+### Componente 5 (Programación)
+
+```{r}
+layoutgcursos <- layout_with_sugiyama(g5)$layout
+V(g5)$size <- scales::rescale(
+  degree(g5, mode = "all"),
+  to = c(18, 35)
+)
+V(g5)$label <- V(g5)$curso
+library(stringr)
+
+V(g5)$label <-
+  str_wrap(
+    V(g5)$curso,
+    width = 14
+  )
+plot(
+  g5,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.frame.color = NA,
+  edge.arrow.size = .45,
+edge.width = scales::rescale(E(g5)$peso, c(1.5,6)),
+edge.color = "grey55",
+edge.curved = .05,
+vertex.label.cex = .6,
+vertex.label.family = "sans",
+vertex.label.color = "black"
+)
+```
+
+### Componente 6
+
+```{r}
+layoutgcursos <- layout_with_sugiyama(g6)$layout
+V(g6)$size <- scales::rescale(
+  degree(g6, mode = "all"),
+  to = c(18, 35)
+)
+V(g6)$label <- V(g6)$curso
+library(stringr)
+
+V(g6)$label <-
+  str_wrap(
+    V(g6)$curso,
+    width = 14
+  )
+plot(
+  g6,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.frame.color = NA,
+  edge.arrow.size = .45,
+edge.width = scales::rescale(E(g6)$peso, c(1.5,6)),
+edge.color = "grey55",
+edge.curved = .05,
+vertex.label.cex = .6,
+vertex.label.family = "sans",
+vertex.label.color = "black"
+)
+```
+
+
+### Componentes 2 y 3
+
+```{r}
+layoutgcursos <- layout_with_sugiyama(g23)$layout
+V(g23)$size <- scales::rescale(
+  degree(g23, mode = "all"),
+  to = c(18, 35)
+)
+V(g23)$label <- V(g23)$curso
+library(stringr)
+
+V(g23)$label <-
+  str_wrap(
+    V(g23)$curso,
+    width = 14
+  )
+plot(
+  g23,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.frame.color = NA,
+  edge.arrow.size = .45,
+edge.width = scales::rescale(E(g23)$peso, c(1.5,6)),
+edge.color = "grey55",
+edge.curved = .05,
+vertex.label.cex = .6,
+vertex.label.family = "sans",
+vertex.label.color = "black"
+)
+```
+
+### Componentes 2 y 4
+
+```{r}
+layoutgcursos <- layout_with_sugiyama(g24)$layout
+V(g24)$size <- scales::rescale(
+  degree(g24, mode = "all"),
+  to = c(18, 35)
+)
+V(g24)$label <- V(g24)$curso
+library(stringr)
+
+V(g24)$label <-
+  str_wrap(
+    V(g24)$curso,
+    width = 14
+  )
+plot(
+  g24,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.frame.color = NA,
+  edge.arrow.size = .45,
+edge.width = scales::rescale(E(g24)$peso, c(1.5,6)),
+edge.color = "grey55",
+edge.curved = .05,
+vertex.label.cex = .6,
+vertex.label.family = "sans",
+vertex.label.color = "black"
+)
+```
+
+
+### Componente 3 y 4
+
+```{r}
+layoutgcursos <- layout_with_sugiyama(g34)$layout
+V(g34)$size <- scales::rescale(
+  degree(g34, mode = "all"),
+  to = c(18, 35)
+)
+V(g34)$label <- V(g34)$curso
+library(stringr)
+
+V(g34)$label <-
+  str_wrap(
+    V(g34)$curso,
+    width = 14
+  )
+plot(
+  g34,
+  layout=layoutgcursos,
+  edge.color = "grey70",
+  vertex.frame.color = NA,
+  edge.arrow.size = .45,
+edge.width = scales::rescale(E(g34)$peso, c(1.5,6)),
+edge.color = "grey55",
+edge.curved = .05,
+vertex.label.cex = .6,
+vertex.label.family = "sans",
+vertex.label.color = "black"
+)
+```
+
+
+# Conclusiones
+
++ Con el modelo **SBM** comprobamos que el conocimiento del pensum de la carrera de estadística de la universidad Nacional forma una estructura integrada. 
+
++ Para futuros trabajos es mejor definir de forma más estricta los cursos, para evitar resultados como ver análisis de regresión despues de estadística descriptiva y exploratoria, debido a la relaicón que hay con los conceptos pues estos se imparten de forma superficial en descriptiva, más sin imbargo estan las respectivas materias de probabilidad e inferencia para profundizar más en los conceptos que conllevan a regresión.
+
++ El pensum que se tiene hasta el momento es bastante correcto y preciso, sin embargo se evidenció posibles mejoras en los prerrequisitos de otras materias que hasta el momento han sido "flexibles"
+
+
+
+
+
+# Referencias
 
 
 
