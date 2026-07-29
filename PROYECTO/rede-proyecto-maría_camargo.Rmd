@@ -267,7 +267,12 @@ tabla %>%
 
 # Red de conceptos
 
-```{r fconceptos, fig.cap="Visualización de la red de conceptos", fig.align='center'}
+```{r fconceptos, fig.align='center', fig.cap="Visualización de la red de conceptos", fig.height=8}
+par(
+  mar = c(6, 1, 1, 1),   # aumenta el margen inferior
+  xpd = TRUE             # permite dibujar fuera de la región del gráfico
+)
+
 plot(
   g_conceptos,
   layout = lay,
@@ -277,6 +282,18 @@ plot(
   edge.arrow.size = .25,
   edge.color = "grey75",
   vertex.label = ""
+)
+
+legend(
+  "bottom",
+  legend = paste("Nivel", 0:max(nivel, na.rm = TRUE)),
+  col = pal,
+  pch = 19,
+  pt.cex = 1.4,
+  bty = "n",
+  ncol = 2,
+  inset = c(0, -0.18),
+  xpd = TRUE
 )
 ```
 
@@ -291,14 +308,35 @@ En general, este grafo ya transmite una idea importante: el conocimiento no apar
 
 # Red bipartita entre cursos y conceptos
 
-```{r fbipartita, fig.cap="Visualización de la red bipartita entre cursos y conceptos", fig.align='center'}
+```{r fbipartita, fig.align='center', fig.cap="Visualización de la red bipartita entre cursos y conceptos"}
+par(
+  mar = c(5.5, 1, 1, 1),
+  xpd = TRUE
+)
+
 set.seed(1238)
+
 plot(
   g_bip,
-  vertex.label.cex = 0.6,
-  vertex.label="",
+  vertex.label = "",
   edge.color = "grey70",
   layout = layout_with_fr(g_bip)
+)
+
+legend(
+  "bottom",
+  legend = c(
+    "Curso obligatorio",
+    "Curso electivo",
+    "Concepto"
+  ),
+  pch = c(15, 15, 16),      # cuadrados y círculo
+  col = c("#2C7BB6", "#D7191C", "grey80"),
+  pt.cex = 1.6,
+  ncol = 3,
+  bty = "n",
+  inset = c(0, -0.15),
+  xpd = TRUE
 )
 ```
 En esta red los nodos cuadrados representan los cursos y los nodos circulares representan los conceptos.
@@ -437,7 +475,7 @@ Esta comunidad agrupa concepto de 4 materias: **cálculo diferencial en una vari
 
 #### Gráfico
 
-```{r}
+```{r C1, fig.height=6, fig.cap="Subgrafo de la comunidad 2"}
 g1 <- induced_subgraph(
     g_conceptos,
     membership(com) == 2
@@ -458,18 +496,38 @@ V(g1)$label[idx] <- str_wrap(
   V(g1)$concepto[idx],
   width = 14
 )
+par(
+  mar = c(6, 1, 1, 1),
+  xpd = TRUE
+)
+
 plot(
   g1,
-  layout=layoutgcursos,
-  edge.color = "grey70",
-  vertex.frame.color = NA,
+  layout = layoutgcursos,
+  edge.color = "grey55",
   edge.arrow.size = .45,
-edge.width = scales::rescale(E(g1)$peso, c(1.5,6)),
-edge.color = "grey55",
-edge.curved = .05,
-vertex.label.cex = .6,
-vertex.label.family = "sans",
-vertex.label.color = "black"
+  edge.width = scales::rescale(E(g1)$peso, c(1.5, 6)),
+  edge.curved = .05,
+  vertex.frame.color = NA,
+  vertex.label.cex = .6,
+  vertex.label.family = "sans",
+  vertex.label.color = "black"
+)
+
+niveles_g1 <- sort(unique(V(g1)$nivel))
+
+legend(
+  "bottom",
+  legend = paste("Nivel", niveles_g1),
+  pch = 21,
+  pt.bg = pal[niveles_g1 + 1],
+  col = "black",
+  pt.cex = 1.6,
+  ncol = 2,
+  bty = "n",
+  inset = c(0, -0.18),
+  xpd = TRUE,
+  title = "Nivel conceptual"
 )
 ```
 
@@ -496,7 +554,7 @@ Esta comunidad agrupa concepto de 3 materias: **análisis de regresión, diseño
 
 #### Gráfico
 
-```{r}
+```{r C2, fig.height=6, fig.cap="Subgrafo de la comunidad 3"}
 g1 <- induced_subgraph(
     g_conceptos,
     membership(com) == 3
@@ -517,6 +575,10 @@ V(g1)$label[idx] <- str_wrap(
   V(g1)$concepto[idx],
   width = 14
 )
+par(
+  mar = c(6, 1, 1, 1),
+  xpd = TRUE
+)
 plot(
   g1,
   layout=layoutgcursos,
@@ -529,6 +591,21 @@ edge.curved = .05,
 vertex.label.cex = .6,
 vertex.label.family = "sans",
 vertex.label.color = "black"
+)
+niveles_g1 <- sort(unique(V(g1)$nivel))
+
+legend(
+  "bottom",
+  legend = paste("Nivel", niveles_g1),
+  pch = 21,
+  pt.bg = pal[niveles_g1 + 1],
+  col = "black",
+  pt.cex = 1.6,
+  ncol = 2,
+  bty = "n",
+  inset = c(0, -0.18),
+  xpd = TRUE,
+  title = "Nivel conceptual"
 )
 ```
 
@@ -556,7 +633,7 @@ Esta comunidad agrupa conceptos de materias de **programación**, por lo que est
 
 #### Gráfico
 
-```{r}
+```{r C3, fig.height=6, fig.cap="Subgrafo de la comunidad 14"}
 g1 <- induced_subgraph(
     g_conceptos,
     membership(com) == 14
@@ -577,6 +654,10 @@ V(g1)$label[idx] <- str_wrap(
   V(g1)$concepto[idx],
   width = 14
 )
+par(
+  mar = c(6, 1, 1, 1),
+  xpd = TRUE
+)
 plot(
   g1,
   layout=layoutgcursos,
@@ -589,6 +670,21 @@ edge.curved = .05,
 vertex.label.cex = .6,
 vertex.label.family = "sans",
 vertex.label.color = "black"
+)
+niveles_g1 <- sort(unique(V(g1)$nivel))
+
+legend(
+  "bottom",
+  legend = paste("Nivel", niveles_g1),
+  pch = 21,
+  pt.bg = pal[niveles_g1 + 1],
+  col = "black",
+  pt.cex = 1.6,
+  ncol = 2,
+  bty = "n",
+  inset = c(0, -0.18),
+  xpd = TRUE,
+  title = "Nivel conceptual"
 )
 ```
 
@@ -615,7 +711,7 @@ Esta comunidad agrupa concepto de 4 materias: **bioestadística, indicadores soc
 
 #### gráfico
 
-```{r}
+```{r C4, fig.height=6, fig.cap="Subgrafo de la comunidad 5"}
 g1 <- induced_subgraph(
     g_conceptos,
     membership(com) == 5
@@ -636,6 +732,10 @@ V(g1)$label[idx] <- str_wrap(
   V(g1)$concepto[idx],
   width = 14
 )
+par(
+  mar = c(6, 1, 1, 1),
+  xpd = TRUE
+)
 plot(
   g1,
   layout=layoutgcursos,
@@ -648,6 +748,21 @@ edge.curved = .05,
 vertex.label.cex = .6,
 vertex.label.family = "sans",
 vertex.label.color = "black"
+)
+niveles_g1 <- sort(unique(V(g1)$nivel))
+
+legend(
+  "bottom",
+  legend = paste("Nivel", niveles_g1),
+  pch = 21,
+  pt.bg = pal[niveles_g1 + 1],
+  col = "black",
+  pt.cex = 1.6,
+  ncol = 2,
+  bty = "n",
+  inset = c(0, -0.18),
+  xpd = TRUE,
+  title = "Nivel conceptual"
 )
 ```
 
@@ -674,7 +789,7 @@ Esta comunidad agrupa concepto principalmente de 2 materias: **métodos no param
 
 #### Gráfico
 
-```{r}
+```{r C5, fig.height=6, fig.cap="Subgrafo de la comunidad 12"}
 g1 <- induced_subgraph(
     g_conceptos,
     membership(com) == 12
@@ -695,6 +810,10 @@ V(g1)$label[idx] <- str_wrap(
   V(g1)$concepto[idx],
   width = 14
 )
+par(
+  mar = c(6, 1, 1, 1),
+  xpd = TRUE
+)
 plot(
   g1,
   layout=layoutgcursos,
@@ -707,6 +826,21 @@ edge.curved = .05,
 vertex.label.cex = .6,
 vertex.label.family = "sans",
 vertex.label.color = "black"
+)
+niveles_g1 <- sort(unique(V(g1)$nivel))
+
+legend(
+  "bottom",
+  legend = paste("Nivel", niveles_g1),
+  pch = 21,
+  pt.bg = pal[niveles_g1 + 1],
+  col = "black",
+  pt.cex = 1.6,
+  ncol = 2,
+  bty = "n",
+  inset = c(0, -0.18),
+  xpd = TRUE,
+  title = "Nivel conceptual"
 )
 ```
 
@@ -731,10 +865,10 @@ Esta comunidad agrupa concepto principalmente de 2 materias: **algebra matricial
 
 #### Gráfico
 
-```{r}
+```{r C6, fig.height=6, fig.cap="Subgrafo de la comunidad 1"}
 g1 <- induced_subgraph(
     g_conceptos,
-    membership(com) == 2
+    membership(com) == 1
 )
 
 layoutgcursos <- layout_with_sugiyama(g1)$layout
@@ -752,6 +886,10 @@ V(g1)$label[idx] <- str_wrap(
   V(g1)$concepto[idx],
   width = 14
 )
+par(
+  mar = c(6, 1, 1, 1),
+  xpd = TRUE
+)
 plot(
   g1,
   layout=layoutgcursos,
@@ -764,6 +902,21 @@ edge.curved = .05,
 vertex.label.cex = .6,
 vertex.label.family = "sans",
 vertex.label.color = "black"
+)
+niveles_g1 <- sort(unique(V(g1)$nivel))
+
+legend(
+  "bottom",
+  legend = paste("Nivel", niveles_g1),
+  pch = 21,
+  pt.bg = pal[niveles_g1 + 1],
+  col = "black",
+  pt.cex = 1.6,
+  ncol = 2,
+  bty = "n",
+  inset = c(0, -0.18),
+  xpd = TRUE,
+  title = "Nivel conceptual"
 )
 ```
 
@@ -1414,53 +1567,53 @@ E(g_cursos)$width <- scales::rescale(
 
 g_cursos2 <- delete_edges(
   g_cursos,
-  E(g_cursos)[peso < quantile(E(g_cursos)$peso,.75)]
+  E(g_cursos)[peso < quantile(E(g_cursos)$peso,.35)]
 )
-layoutgcursos <- layout_in_circle(g_cursos)
+layoutgcursos <- layout_in_circle(g_cursos2)
 
 
 g1 <- induced_subgraph(
-    g_cursos,
+    g_cursos2,
     membership(com_cursos) == 1
 )
 
 g2 <- induced_subgraph(
-    g_cursos,
+    g_cursos2,
     membership(com_cursos) == 5
 )
 
 g3 <- induced_subgraph(
-    g_cursos,
+    g_cursos2,
     membership(com_cursos) == 9
 )
 
 g4 <- induced_subgraph(
-    g_cursos,
+    g_cursos2,
     membership(com_cursos) == 2
 )
 
 g5 <- induced_subgraph(
-    g_cursos,
+    g_cursos2,
     membership(com_cursos) == 4
 )
 
 g6 <- induced_subgraph(
-    g_cursos,
+    g_cursos2,
     membership(com_cursos) == 3
 )
 
 g23 <- induced_subgraph(
-    g_cursos,
+    g_cursos2,
     membership(com_cursos) %in% c(5,9)
 )
 
 g24 <- induced_subgraph(
-    g_cursos,
+    g_cursos2,
     membership(com_cursos) %in% c(5,2)
 )
 
 g34 <- induced_subgraph(
-    g_cursos,
+    g_cursos2,
     membership(com_cursos) %in% c(9,2)
 )
 
@@ -1474,7 +1627,7 @@ g34 <- induced_subgraph(
 set.seed(1302)
 
 plot(
-  g_cursos,
+  g_cursos2,
   edge.arrow.size = .35,
   edge.color = "grey70",
   vertex.label=""
@@ -1483,7 +1636,7 @@ plot(
 
 ### Componente 1 (Fundamentación matemática)
 
-```{r fig.height=14}
+```{r fig.height=10}
 layoutgcursos <- layout_with_sugiyama(g1)$layout
 V(g1)$size <- scales::rescale(
   degree(g1, mode = "all"),
@@ -1515,14 +1668,14 @@ Aunque el grafo obtenido es bastante similar al pensum vigente, se observa una d
 
 + En el plan de estudios actual, Introducción al análisis real y Cálculo de ecuaciones diferenciales ordinarias pertenecen al mismo componente y cualquiera de las dos asignaturas permite cumplir el requisito de créditos correspondiente. Sin embargo, el modelo ubica a Introducción al análisis real como un nodo más central, conectado con un mayor número de asignaturas posteriores. Esto sugiere que, para estudiantes que únicamente necesiten cursar una asignatura del componente, Introducción al análisis real podría aportar una base conceptual más amplia y facilitar el acceso a conocimientos utilizados en cursos posteriores.
 
-+ Una diferencia respecto al pensum actual es que el algoritmo propone que Programación y métodos numéricos dependa tanto de Álgebra lineal básica como de Álgebra matricial, mientras que en el currículo vigente únicamente se exige Álgebra lineal básica. Esto puede interpretarse como una evidencia de que los contenidos de álgebra matricial constituyen un soporte conceptual importante para comprender algunos de los métodos desarrollados en la asignatura, aunque dicha relación no se encuentre formalizada como prerrequisito.
++ Una similitud respecto al pensum actual es que el algoritmo propone que Programación y métodos numéricos dependa de Álgebra lineal básica.
 
-+ Otra diferencia importante se observa en las asignaturas Mecánica newtoniana y Fundamentos de física moderna. En el pensum vigente estas materias no tienen prerrequisitos formales; sin embargo, el modelo propone como prerrequisito Cálculo de ecuaciones diferenciales ordinarias. Esta relación resulta consistente con los contenidos de ambas asignaturas, ya que numerosos modelos físicos se describen mediante ecuaciones diferenciales, tanto en la formulación de la mecánica clásica como en diversos problemas de la física moderna. En consecuencia, el algoritmo identifica una dependencia conceptual que podría facilitar la comprensión de estos cursos, aunque actualmente no se encuentre establecida en la estructura curricular.
++ Una diferencia importante se observa en la asignatura Fundamentos de física moderna. En el pensum vigente estas materias no tienen prerrequisitos formales; sin embargo, el algoritmo propone como prerrequisito Cálculo de ecuaciones diferenciales ordinarias. Esta relación resulta consistente con los contenidos de ambas asignaturas, ya que numerosos modelos físicos se describen mediante ecuaciones diferenciales, tanto en la formulación de la mecánica clásica como en diversos problemas de la física moderna. En consecuencia, el algoritmo identifica una dependencia conceptual que podría facilitar la comprensión de estos cursos, aunque actualmente no se encuentre establecida en la estructura curricular.
 
 
 ### Componente 2 (Fundamentación estadística)
 
-```{r fig.height=14}
+```{r fig.height=10}
 layoutgcursos <- layout_with_sugiyama(g2)$layout
 V(g2)$size <- scales::rescale(
   degree(g2, mode = "all"),
@@ -1551,12 +1704,12 @@ vertex.label.color = "black"
 )
 ```
 
-El algoritmo sugiere que la asignatura Indicadores sociales debería cursarse después de una materia que proporcione los fundamentos de la inferencia estadística. Aunque el plan de estudios vigente permite cursarla sin este antecedente, la construcción e interpretación de indicadores sociales requiere comprender conceptos como estimación, error de muestreo, intervalos de confianza e inferencia sobre poblaciones. En este sentido, una asignatura como Probabilidad y Estadística Fundamental, en la que se introducen estos conceptos, podría constituir un prerrequisito conceptual suficiente. Si bien un curso de Inferencia Estadística proporcionaría una formación más profunda, no resulta estrictamente necesario para alcanzar los objetivos de la asignatura.
+El algoritmo ubica la asignatura Indicadores sociales después de Probabilidad. Esta dependencia puede interpretarse como la necesidad de contar con los fundamentos probabilísticos que sustentan el estudio de la variabilidad y la incertidumbre presentes en los fenómenos sociales. Si bien los conceptos de estimación e inferencia se desarrollan formalmente en una asignatura posterior, los conocimientos adquiridos en Probabilidad constituyen una base matemática adecuada para comprender los contenidos iniciales de Indicadores sociales.
 
 
 ### Componente 3 (Muestreo)
 
-```{r fig.height=14}
+```{r fig.height=10}
 layoutgcursos <- layout_with_sugiyama(g3)$layout
 V(g3)$size <- scales::rescale(
   degree(g3, mode = "all"),
@@ -1591,7 +1744,7 @@ Una diferencia llamativa corresponde a la relación entre Diseño de experimento
 
 ### Componente 4 (Regresión)
 
-```{r fig.height=14}
+```{r fig.height=10}
 layoutgcursos <- layout_with_sugiyama(g4)$layout
 V(g4)$size <- scales::rescale(
   degree(g4, mode = "all"),
@@ -1625,7 +1778,7 @@ En la asignatura Estadística espacial, el plan de estudios vigente establece co
 
 ### Componente 5 (Programación)
 
-```{r fig.height=14}
+```{r fig.height=10}
 layoutgcursos <- layout_with_sugiyama(g5)$layout
 V(g5)$size <- scales::rescale(
   degree(g5, mode = "all"),
@@ -1654,14 +1807,14 @@ vertex.label.color = "black"
 )
 ```
 
+En esta comunidad se observa una estructura muy simple, donde Programación de computadores constituye el curso base a partir del cual se derivan Programación en lenguajes estadísticos y Bases de datos. Esta organización es consistente con el desarrollo progresivo de competencias en programación, ya que primero se adquieren los fundamentos de la programación y posteriormente se profundiza en herramientas específicas para el análisis estadístico y la gestión de datos.
 
-El algoritmo identifica que Minería de datos debería cursarse después de Programación en lenguajes estadísticos y Bases de datos. En el plan de estudios vigente, esta asignatura no posee prerrequisitos formales; sin embargo, la dependencia propuesta resulta consistente con sus contenidos. El análisis de grandes volúmenes de datos requiere competencias en programación para la implementación de algoritmos y el manejo de librerías especializadas, así como conocimientos en bases de datos para la extracción, consulta y preparación de la información. En este sentido, el algoritmo sugiere que estos cursos proporcionan herramientas fundamentales para el desarrollo de la asignatura.
 
 
 
 ### Componentes 2 y 4
 
-```{r fig.height=14}
+```{r fig.height=10}
 layoutgcursos <- layout_with_sugiyama(g24)$layout
 V(g24)$size <- scales::rescale(
   degree(g24, mode = "all"),
@@ -1690,9 +1843,9 @@ vertex.label.color = "black"
 )
 ```
 
-En este componente también se observa que el algoritmo ubica Métodos no paramétricos después de Análisis de regresión, mientras que en el plan de estudios vigente esta asignatura tiene como prerrequisito Inferencia estadística. Esta diferencia resulta razonable, ya que dentro de los contenidos de Métodos no paramétricos se incluyen técnicas de regresión no paramétrica, lo que justifica la dependencia identificada por el algoritmo.
+Una situación particular se observa con la asignatura Series de tiempo univariadas, la cual el algoritmo ubica después de Probabilidad. Aunque esta relación es coherente desde el punto de vista de los fundamentos probabilísticos requeridos para el estudio de procesos estocásticos y series de tiempo, la posición obtenida dentro de la red no refleja completamente la secuencia curricular esperada. Este resultado puede atribuirse a la forma en que se construyó la base de datos, ya que las descripciones de las asignaturas incluyen conceptos de diferente nivel de profundidad y, en algunos casos, conceptos introductorios y avanzados fueron representados de la misma manera. En trabajos futuros sería conveniente establecer criterios más estrictos para la definición y clasificación de los conceptos, diferenciando aquellos que se introducen de aquellos que se desarrollan en profundidad.
 
-Por otra parte, el algoritmo sitúa Análisis de regresión después de Estadística descriptiva y exploratoria. Sin embargo, este resultado debe interpretarse con cautela, pues la descripción oficial de esta asignatura incluye contenidos que abarcan no solo estadística descriptiva, sino también probabilidad, inferencia estadística e incluso regresión lineal. Como consecuencia, el algoritmo la identifica como una asignatura con una base conceptual mucho más amplia de la que su nombre sugiere y la ubica próxima a asignaturas de servicio como Bioestadística fundamental y Estadística social fundamental, cuyos contenidos, según la información oficial del plan de estudios, son muy similares. En este caso, la posición obtenida responde a la estructura de los contenidos registrados y no necesariamente a una recomendación sobre el orden óptimo de cursar las asignaturas.
+
 
 
 
@@ -1700,11 +1853,13 @@ Por otra parte, el algoritmo sitúa Análisis de regresión después de Estadís
 
 + El algoritmo basado en **Modelos de Bloques Estocásticos** (SBM) permitió identificar que el conjunto de asignaturas del programa de Estadística de la Universidad Nacional presenta una estructura altamente integrada, evidenciando que los conceptos se organizan en comunidades temáticas con relaciones coherentes entre sí.
 
-+ La calidad de los resultados obtenidos depende directamente de la definición de los conceptos y de las relaciones establecidas entre ellos. En particular, asignaturas cuyas descripciones incluyen contenidos introductorios de varias áreas pueden generar dependencias que no reflejan necesariamente la secuencia curricular deseada. Un ejemplo de ello es la ubicación de Análisis de regresión después de Estadística descriptiva y exploratoria, resultado que se explica porque esta última, según la descripción oficial del curso, incluye conceptos básicos de probabilidad, inferencia y regresión lineal. En trabajos futuros sería conveniente definir con mayor precisión el alcance de cada concepto y el nivel de profundidad con el que se aborda en cada asignatura.
++ La calidad de los resultados obtenidos depende directamente de la definición de los conceptos y de las relaciones establecidas entre ellos. En particular, asignaturas cuyas descripciones incluyen contenidos introductorios de varias áreas pueden generar dependencias que no reflejan necesariamente la secuencia curricular deseada. Un ejemplo de ello es la ubicación de Series de tiempo univariadas después de Probabilidad.
 
-+ En términos generales, el algoritmo reproduce de manera satisfactoria la estructura del pensum vigente, lo que constituye una evidencia de la consistencia del diseño curricular actual. No obstante, también identifica dependencias conceptuales que no se encuentran formalizadas como prerrequisitos, como ocurre en asignaturas como Minería de datos, Estadística espacial, Programación y métodos numéricos o algunas asignaturas del área de física. Estos resultados pueden servir como insumo para futuras revisiones curriculares o como recomendaciones para que los estudiantes planifiquen de manera más adecuada la secuencia de cursos que desean tomar.
++ En términos generales, el algoritmo reproduce de manera satisfactoria la estructura del pensum vigente, lo que constituye una evidencia de la consistencia del diseño curricular actual. No obstante, también identifica dependencias conceptuales que no se encuentran formalizadas como prerrequisitos, como ocurre en asignaturas como Estadística espacial o algunas asignaturas del área de física. Estos resultados pueden servir como insumo para futuras revisiones curriculares o como recomendaciones para que los estudiantes planifiquen de manera más adecuada la secuencia de cursos que desean tomar.
 
 + La metodología propuesta demuestra que es posible utilizar técnicas de análisis de redes para estudiar la estructura conceptual de un plan de estudios y apoyar la identificación de prerrequisitos entre asignaturas. En este sentido, el algoritmo no busca reemplazar el criterio académico empleado en el diseño curricular, sino proporcionar una herramienta objetiva que complemente dicho proceso mediante el análisis de las dependencias conceptuales existentes entre los cursos.
+
+*Para la elaboración de este trabajo se utilizó inteligencia artificial como herramienta de apoyo, con el objetivo de mejorar la visualización de los gráficos y optimizar la redacción de los textos*
 
 
 # Referencias
