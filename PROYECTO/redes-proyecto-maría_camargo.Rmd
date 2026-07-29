@@ -11,30 +11,78 @@ output:
     code_folding: hide
 css: estilos.css 
 bibliography: BIBLIOGRAFIA.bib
+csl: apa.csl
 ---
+
+
+# Resumen
+
+El diseño de prerrequisitos entre asignaturas suele establecerse a partir del criterio de expertos, lo que dificulta evaluar de manera objetiva la coherencia de las trayectorias curriculares. En este trabajo se propone una metodología basada en análisis de redes para estudiar la estructura conceptual del plan de estudios del pregrado en Estadística de la Universidad Nacional de Colombia. A partir de los microcurrículos se construyó una base de datos de conceptos, sus relaciones de dependencia y la asociación entre conceptos y cursos, permitiendo representar el conocimiento mediante una red conceptual y una red bipartita curso-concepto. Sobre la red de conceptos se aplicaron tres modelos de análisis de redes: un Modelo de Bloques Estocásticos para identificar comunidades estructurales, el algoritmo de Louvain para detectar agrupamientos de conceptos relacionados y un modelo de espacio latente para representar la proximidad conceptual en un espacio de baja dimensión. Finalmente, con base en las relaciones de precedencia entre conceptos se desarrolló un algoritmo para inferir posibles prerrequisitos entre asignaturas y comparar dicha estructura con la secuencia curricular oficial. Los resultados muestran que la red presenta comunidades conceptuales bien definidas, correspondientes a diferentes líneas de formación del programa, y evidencian que el análisis de redes constituye una herramienta útil para apoyar el estudio y la evaluación de estructuras curriculares.
+
+**Palabras clave**: análisis de redes, redes de conocimiento, prerrequisitos curriculares, detección de comunidades, modelos de espacio latente, modelo de bloques estocásticos, currículo universitario.
 
 
 # Introducción
 
 El diseño de un plan de estudios constituye un elemento fundamental en la formación académica, ya que establece la secuencia en la que los estudiantes adquieren y consolidan los conocimientos necesarios para su desarrollo profesional. Una adecuada definición de las relaciones de prerrequisito entre asignaturas favorece una progresión coherente del aprendizaje y contribuye a fortalecer la articulación entre los diferentes componentes curriculares.
 
-En el contexto del programa académico objeto de este estudio, actualmente se encuentra en desarrollo un proceso de actualización curricular orientado a la construcción de un nuevo pensum. En este escenario, resulta de interés disponer de herramientas que permitan analizar objetivamente la estructura del conocimiento impartido en las asignaturas y generar evidencia que apoye la definición de relaciones de dependencia entre ellas.
+En los últimos años, el análisis de redes ha sido ampliamente utilizado para estudiar sistemas complejos en diferentes áreas del conocimiento, incluyendo redes sociales, redes biológicas, redes de transporte y redes de conocimiento. En el ámbito educativo, estas metodologías han permitido representar relaciones entre conceptos, competencias y cursos, facilitando el estudio de la estructura del conocimiento y la identificación de patrones que no son evidentes mediante análisis tradicionales.
 
-Con este propósito, en este trabajo se modela el conjunto de conceptos abordados en las asignaturas como una red, donde los nodos representan conceptos y las aristas representan relaciones de dependencia conceptual. Sobre esta representación se aplican diferentes metodologías de análisis de redes, incluyendo el modelo de bloques estocásticos (Stochastic Block Model, SBM), el algoritmo de detección de comunidades de Louvain y los modelos de espacio latente. Estas técnicas permiten identificar grupos de conceptos estrechamente relacionados y estudiar la organización estructural del conocimiento dentro del currículo.
+Diversos autores han propuesto representar los planes de estudio mediante redes de prerrequisitos, en las que los cursos constituyen los nodos y las relaciones de dependencia académica corresponden a las aristas dirigidas. Debido a que un curso no puede ser simultáneamente prerrequisito y requisito de sí mismo a través de una secuencia de cursos, estas redes suelen modelarse como grafos acíclicos dirigidos (Directed Acyclic Graphs, DAGs), lo que permite estudiar la organización jerárquica del currículo y las trayectorias de aprendizaje [@stavrinides2023course].
 
-Finalmente, a partir de la estructura conceptual identificada y de la asociación entre conceptos y asignaturas, se analizan las posibles relaciones de prerrequisito entre cursos. De esta manera, el estudio proporciona una aproximación basada en datos para apoyar el proceso de diseño curricular, ofreciendo una perspectiva complementaria a la experiencia de los expertos académicos encargados de la construcción del nuevo plan de estudios.
+Asimismo, el currículo académico puede entenderse como un sistema complejo susceptible de ser analizado mediante teoría de redes, donde las asignaturas constituyen los nodos y las relaciones de prerrequisito representan las conexiones entre ellas [@aldrich2015curriculum].
 
-# Bases de datos
+En el contexto del programa de Estadística de la Universidad Nacional de Colombia, actualmente se encuentra en desarrollo un proceso de actualización curricular. En este escenario resulta pertinente disponer de herramientas que permitan analizar objetivamente la estructura conceptual del currículo y aportar evidencia que apoye la definición de relaciones de prerrequisito entre asignaturas.
+
+El objetivo de este trabajo es proponer una metodología basada en análisis de redes para estudiar la organización conceptual del currículo e inferir relaciones de prerrequisito entre asignaturas a partir de las dependencias existentes entre los conceptos abordados en los cursos. El alcance del trabajo comprende la construcción de una base de datos de conceptos, la generación de una red conceptual, la aplicación de técnicas de análisis de redes y el desarrollo de un algoritmo para inferir posibles relaciones de prerrequisito, las cuales se comparan con la estructura curricular vigente.
+
+# Metodología
+
+## Marco teórico
+
+El análisis de redes constituye una herramienta ampliamente utilizada para estudiar sistemas complejos formados por entidades y las relaciones existentes entre ellas. En este contexto, una red puede representarse mediante un grafo, donde los nodos representan los elementos del sistema y las aristas representan las interacciones o relaciones entre dichos elementos. Esta representación ha permitido analizar fenómenos en disciplinas tan diversas como las ciencias sociales, la biología, la informática y la educación.
+
+En el ámbito educativo, las redes han sido utilizadas para modelar la estructura de planes de estudio, representando las asignaturas como nodos y las relaciones de prerrequisito como aristas dirigidas. Este enfoque facilita el estudio de la organización curricular, la identificación de comunidades de cursos relacionados y el análisis de las trayectorias de aprendizaje de los estudiantes [@aldrich2015curriculum; @stavrinides2023course].
+
+Con el propósito de estudiar la estructura de una red, existen diferentes técnicas que permiten identificar patrones de organización entre los nodos. En este trabajo se emplean tres enfoques complementarios: los modelos de bloques estocásticos, el algoritmo de Louvain y los modelos de espacio latente.
+
+### Modelo de bloques estocásticos (SBM)
+
+Los modelos de bloques estocásticos (Stochastic Block Models, SBM) constituyen una familia de modelos probabilísticos para redes, cuyo objetivo es identificar grupos de nodos con patrones de conexión similares. Holland et al. describen un modelo de bloques estocástico como "un tipo especial de distribución de probabilidad sobre el espacio de matrices de adyacencia. En este modelo, los nodos se particionan en subgrupos llamados bloques, y la distribución de los vínculos entre nodos depende de a qué bloques pertenecen dichos nodos" [@holland1983stochastic].
+
+Bajo este enfoque, la pertenencia de un nodo a una comunidad no depende únicamente del número de conexiones que posee, sino del patrón de conexiones que comparte con los demás nodos de la red. Esto permite identificar grupos de conceptos con funciones estructurales similares dentro del currículo, incluso cuando no presentan una alta densidad de conexiones entre sí.
+
+### Algoritmo de Louvain
+
+Como método complementario para la detección de comunidades se empleó el algoritmo de Louvain, propuesto por Blondel et al. [@blondel2008fast]. Este algoritmo busca particionar la red maximizando la modularidad, una medida que cuantifica qué tan densamente conectados se encuentran los nodos dentro de una comunidad en comparación con una red aleatoria.
+
+El procedimiento consta de dos etapas iterativas. En la primera, cada nodo se asigna inicialmente a su propia comunidad y posteriormente se evalúan movimientos locales que incrementen la modularidad. En la segunda etapa, las comunidades obtenidas se agrupan para construir una nueva red, donde cada comunidad pasa a representarse como un único nodo. Este proceso se repite hasta que la modularidad deja de aumentar [@findcommunities].
+
+La modularidad ($Q$) es descrita por Newman como una medida del acoplamiento asortativo (*assortative mixing*), la cual cuantifica el grado en que los nodos pertenecientes a un mismo grupo presentan una mayor tendencia a conectarse entre sí que la esperada bajo un modelo aleatorio [@newman2018networks].
+
+### Modelos de espacio latente
+
+Los modelos de espacio latente proporcionan una representación geométrica de una red, asignando a cada nodo una posición en un espacio de dimensión reducida. La cercanía entre dos nodos en este espacio refleja la probabilidad de que exista una conexión entre ellos.
+
+Hoff et al. indican que "en estos modelos, se asume que cada actor $i$ tiene una posición desconocida $z_i$ en un espacio social no observado. La probabilidad de que exista un vínculo entre dos actores depende de la cercanía de sus posiciones en este espacio de características latentes" [@hoff2002latent].
+
+A diferencia de los modelos de bloques estocásticos y del algoritmo de Louvain, cuyo objetivo principal es identificar comunidades, los modelos de espacio latente permiten visualizar las relaciones de proximidad entre los nodos de la red. En este trabajo, esta representación se utiliza para explorar la organización conceptual del currículo y complementar la interpretación de las comunidades identificadas mediante los otros métodos.
+
+
+
+# Aplicación
+
+## Bases de datos
 
 La base de datos utilizada en este trabajo fue construida a partir de información oficial de la Universidad Nacional de Colombia. Como punto de partida se empleó el Proyecto Educativo del Programa (PEP) de la carrera de Estadística, en el cual se identificaron las asignaturas del plan de estudios, el componente curricular al que pertenecen, el número de créditos y su carácter obligatorio o electivo [@pep_estadistica].
 
-Posteriormente, para identificar los conceptos desarrollados en cada asignatura, se consultó el [@Buscador de Cursos] de la Universidad Nacional de Colombia [@catalogo_asignaturas], donde se obtuvieron las descripciones oficiales de las asignaturas vigentes. Durante este proceso se evidenció que algunas asignaturas incluidas en el PEP ya no se encontraban disponibles en el catálogo actual.
+Posteriormente, para identificar los conceptos desarrollados en cada asignatura, se consultó el *Buscador de cursos* de la Universidad Nacional de Colombia [@catalogo_asignaturas], donde se obtuvieron las descripciones oficiales de las asignaturas vigentes. Durante este proceso se evidenció que algunas asignaturas incluidas en el PEP ya no se encontraban disponibles en el catálogo actual.
 
-Con el propósito de recuperar la mayor cantidad posible de información histórica y completar la base de datos, también se consultó el repositorio de [@contenidos_asignaturas] de la Universidad Nacional de Colombia [@contenidos_asignaturas]. Esta fuente permitió obtener programas académicos y descripciones de algunas asignaturas que ya no se ofertan, pero que forman parte del plan de estudios considerado en esta investigación.
+Con el propósito de recuperar la mayor cantidad posible de información histórica y completar la base de datos, también se consultó el repositorio de *Contenido de asignaturas* de la Universidad Nacional de Colombia [@contenidos_asignaturas]. Esta fuente permitió obtener programas académicos y descripciones de algunas asignaturas que ya no se ofertan, pero que forman parte del plan de estudios considerado en esta investigación.
 
 A partir de la información recopilada se realizó un proceso de extracción y organización de los contenidos conceptuales de cada asignatura, construyéndose posteriormente las relaciones de dependencia entre conceptos y su asociación con los respectivos cursos. Como resultado se obtuvo una base de datos relacional compuesta por cuatro tablas principales.
 
-## Estructura de la base de datos
+### Estructura de la base de datos
 
 La base de datos está conformada por las siguientes cuatro tablas:
 
@@ -43,6 +91,8 @@ La base de datos está conformada por las siguientes cuatro tablas:
 - **CONCEPTOS_RELACIONES**: almacena las relaciones de dependencia entre conceptos. Cada registro está compuesto por un concepto de origen y un concepto de destino, donde la relación indica que el concepto de origen constituye un conocimiento previo necesario para comprender el concepto de destino.
 
 - **CURSOS**: registra la información general de cada asignatura, incluyendo un identificador único, el nombre del curso, el componente curricular al que pertenece, el número de créditos y si corresponde a una asignatura obligatoria o electiva.
+
+- **CURSOS_CONCEPTOS**: relaciona cada asignatura con los conceptos que en ella se abordan. Además del identificador del curso y del concepto, esta tabla incluye el rol del concepto dentro de la asignatura, clasificándolo como *introduce* cuando el concepto es presentado por primera vez, o *desarrolla* cuando el curso profundiza conocimientos previamente introducidos. Esta estructura permite que un mismo concepto pueda estar asociado a varias asignaturas, reflejando la continuidad y profundización del conocimiento a lo largo del plan de estudios.
 
 Las cuatro tablas constituyen una representación relacional del conocimiento del programa de Estadística y sirven como insumo para la construcción de las redes de conceptos y de cursos analizadas en los capítulos posteriores.
 
@@ -62,7 +112,7 @@ Las cuatro tablas constituyen una representación relacional del conocimiento de
 - Programación
 
 
-- **CURSOS_CONCEPTOS**: relaciona cada asignatura con los conceptos que en ella se abordan. Además del identificador del curso y del concepto, esta tabla incluye el rol del concepto dentro de la asignatura, clasificándolo como *introduce* cuando el concepto es presentado por primera vez, o *desarrolla* cuando el curso profundiza conocimientos previamente introducidos. Esta estructura permite que un mismo concepto pueda estar asociado a varias asignaturas, reflejando la continuidad y profundización del conocimiento a lo largo del plan de estudios.
+
 
 
 ```{r librerias, message=FALSE, warning=FALSE}
@@ -221,7 +271,7 @@ V(g_bip)$shape <- vertices$shape
 
 ```
 
-# tabla resumen
+## tabla resumen
 
 ```{r crear-tabla-resumen}
 resumen_red <- function(g, bipartito = FALSE) {
@@ -265,7 +315,7 @@ tabla %>%
 + **Conectividad:** Ninguna de las dos redes es conectada, sin embargo el número de componentes de ambas es muy diferente, mientras que la red de conceptos posee únicamente 6 componentes, la red cursos–conceptos posee 38 componentes, mostrando una fragmentación mucho mayor, entonces en la red de conceptos se puede pensar que la mayor parte del conocimiento se organiza en unos pocos bloques relativamente grandes.
 
 
-# Red de conceptos
+## Red de conceptos
 
 ```{r fconceptos, fig.align='center', fig.cap="Visualización de la red de conceptos", fig.height=8}
 par(
@@ -306,7 +356,7 @@ legend(
 
 En general, este grafo ya transmite una idea importante: el conocimiento no aparece como una lista de conceptos aislados, sino como una red jerárquica de dependencias donde existen conceptos fundamentales que sirven de base para múltiples rutas de aprendizaje y otros conceptos especializados que solo pueden abordarse después de recorrer varios prerrequisitos. Esa es precisamente la interpretación que se espera de una red concepto–concepto.
 
-# Red bipartita entre cursos y conceptos
+## Red bipartita entre cursos y conceptos
 
 ```{r fbipartita, fig.align='center', fig.cap="Visualización de la red bipartita entre cursos y conceptos"}
 par(
@@ -353,9 +403,9 @@ Para facilitar la interpretación:
 La red bipartita evidencia que la mayoría de los cursos presentan conjuntos de conceptos propios, formando estructuras tipo estrella donde un curso se relaciona principalmente con contenidos exclusivos. Sin embargo, también se identifican conceptos compartidos entre diferentes asignaturas, los cuales generan conexiones entre cursos obligatorios y optativos. Estos conceptos pueden interpretarse como ejes transversales del currículo, al aparecer en múltiples espacios académicos y facilitar la integración del conocimiento. Por otra parte, el aislamiento del curso de Seminario responde a la ausencia de un programa analítico con conceptos definidos y no a una falta de relación con el resto del plan de estudios.
 
 
-# Modelos de comunidades {.tabset}
+## Modelos de comunidades {.tabset}
 
-## SBM
+### SBM
 
 
 ```{r SBM, message=FALSE, include=FALSE}
@@ -389,7 +439,7 @@ plot(bm$ICL)
 El criterio ICL alcanzó su máximo para un único bloque, lo que indica que, bajo los supuestos del Stochastic Block Model, la red presenta una estructura global relativamente homogénea y no se identifican comunidades estadísticamente bien diferenciadas. Esto sugiere que los conceptos se encuentran altamente interconectados y que las fronteras entre áreas de conocimiento no son suficientemente marcadas para ser detectadas por un modelo probabilístico de bloques.
 
 
-## Louvain {.tabset}
+### Louvain {.tabset}
 
 El algoritmo de Louvain identificó 18 comunidades con una modularidad de 0.811, lo que indica una estructura comunitaria altamente marcada. Esto sugiere que los conceptos no se encuentran distribuidos de forma homogénea en la red, sino organizados en núcleos conceptuales con una elevada conectividad interna y relativamente pocas relaciones con conceptos pertenecientes a otras comunidades.
 
@@ -437,7 +487,7 @@ tabla_comunidad <- tibble(
 ```
 
 
-### Comunidades
+#### Comunidades
 
 Aunque las comunidades identificadas por Louvain no corresponden necesariamente a asignaturas individuales, sí representan núcleos conceptuales coherentes del currículo. En varios casos, una comunidad agrupa conceptos provenientes de diferentes cursos que comparten una misma función dentro del proceso de formación. Esto evidencia que la organización conceptual del plan de estudios trasciende la división administrativa de las asignaturas y refleja dependencias de conocimiento entre distintas áreas.
 
@@ -454,7 +504,7 @@ tabla_comunidades |>
   row_spec(0, bold = TRUE)
 ```
 
-### Red total
+#### Red total
 
 ```{r}
 plot(
@@ -469,11 +519,11 @@ plot(
 )
 ```
 
-### Comunidad 2 (40 conceptos) {.tabset}
+#### Comunidad 2 (40 conceptos) {.tabset}
 
 Esta comunidad agrupa concepto de 4 materias: **cálculo diferencial en una variable, cálculo integral en una variable, algebra lineal** y **cálculo multivariado**. Por eso se podría considerar como un componente de fundamentación matemática.
 
-#### Gráfico
+##### Gráfico
 
 ```{r C1, fig.height=6, fig.cap="Subgrafo de la comunidad 2"}
 g1 <- induced_subgraph(
@@ -531,7 +581,7 @@ legend(
 )
 ```
 
-#### Tabla
+##### Tabla
 
 ```{r tcom2, tab.cap="20 conceptos en la comunidad"}
 tabla_comunidad %>% 
@@ -548,11 +598,11 @@ tabla_comunidad %>%
 ```
 
 
-### Comunidad 3 (27 conceptos){.tabset}
+#### Comunidad 3 (27 conceptos){.tabset}
 
 Esta comunidad agrupa concepto de 3 materias: **análisis de regresión, diseño de experimentos** y **consultoría**. Por eso se podría considerar como un componente de modelamiento estadístico o metodología para el análisis estadístico
 
-#### Gráfico
+##### Gráfico
 
 ```{r C2, fig.height=6, fig.cap="Subgrafo de la comunidad 3"}
 g1 <- induced_subgraph(
@@ -609,7 +659,7 @@ legend(
 )
 ```
 
-#### Tabla
+##### Tabla
 
 ```{r tcom3, tab.cap="20 conceptos en la comunidad"}
 tabla_comunidad %>% 
@@ -627,11 +677,11 @@ tabla_comunidad %>%
 
 
 
-### Comunidad 14 (22 conceptos) {.tabset}
+#### Comunidad 14 (22 conceptos) {.tabset}
 
 Esta comunidad agrupa conceptos de materias de **programación**, por lo que este componente es claramente de programación.
 
-#### Gráfico
+##### Gráfico
 
 ```{r C3, fig.height=6, fig.cap="Subgrafo de la comunidad 14"}
 g1 <- induced_subgraph(
@@ -688,7 +738,7 @@ legend(
 )
 ```
 
-#### Tabla
+##### Tabla
 
 ```{r tcom14, tab.cap="Conceptos en la comunidad"}
 tabla_comunidad %>% 
@@ -704,12 +754,12 @@ tabla_comunidad %>%
 ```
 
 
-### Comunidad 5 (21 conceptos) {.tabset}
+#### Comunidad 5 (21 conceptos) {.tabset}
 
 Esta comunidad agrupa concepto de 4 materias: **bioestadística, indicadores sociales, epidemiología** y **probabilidad**, esto se puede deber a que comparten conceptos de probabilidad para su respectiva aplicación, por lo que este componente se puede considerar como uno de **fundamentos probabilísticos y aplicaciones en estadística oficial y salud**.
 
 
-#### gráfico
+##### gráfico
 
 ```{r C4, fig.height=6, fig.cap="Subgrafo de la comunidad 5"}
 g1 <- induced_subgraph(
@@ -767,7 +817,7 @@ legend(
 ```
 
 
-#### Tabla
+##### Tabla
 
 ```{r tcom5, tab.cap="Conceptos en la comunidad"}
 tabla_comunidad %>% 
@@ -783,11 +833,11 @@ tabla_comunidad %>%
 ```
 
 
-### Comunidad 12 (18 conceptos){.tabset}
+#### Comunidad 12 (18 conceptos){.tabset}
 
 Esta comunidad agrupa concepto principalmente de 2 materias: **métodos no paramétricos** e **inteligencia artificial**.
 
-#### Gráfico
+##### Gráfico
 
 ```{r C5, fig.height=6, fig.cap="Subgrafo de la comunidad 12"}
 g1 <- induced_subgraph(
@@ -844,7 +894,7 @@ legend(
 )
 ```
 
-#### Tabla
+##### Tabla
 
 ```{r tcom12, tab.cap="Conceptos en la comunidad"}
 tabla_comunidad %>% 
@@ -859,11 +909,11 @@ tabla_comunidad %>%
   row_spec(0, bold = TRUE)
 ```
 
-### Comunidad 1 (17 conceptos) {.tabset}
+#### Comunidad 1 (17 conceptos) {.tabset}
 
 Esta comunidad agrupa concepto principalmente de 2 materias: **algebra matricial** e **series de tiempo univariadas**, esto se puede deber al uso que se le da a la algebra matricial con los modelos (en general).
 
-#### Gráfico
+##### Gráfico
 
 ```{r C6, fig.height=6, fig.cap="Subgrafo de la comunidad 1"}
 g1 <- induced_subgraph(
@@ -921,7 +971,7 @@ legend(
 ```
 
 
-#### Tabla
+##### Tabla
 
 ```{r tcom17, tab.cap="Conceptos en la comunidad"}
 tabla_comunidad %>% 
@@ -937,7 +987,7 @@ tabla_comunidad %>%
 ```
 
 
-# Espacio latente {.tabset}
+## Espacio latente {.tabset}
 
 
 Para las visualizaciones por componentes se utlizan las que anteriormente se habían encontrado con el algoritmo de *Louvain*.
@@ -991,7 +1041,7 @@ coord$bt <- betweenness(g_conceptos)
 
 ```
 
-## Red completa
+### Red completa
 
 ```{r}
 ggplot(
@@ -1024,7 +1074,7 @@ ggplot(
 
 ```
 
-## Comunidad 2 (40 conceptos)
+### Comunidad 2 (40 conceptos)
 
 Se observa que la comunidad no es homogénea y que hay varios subconjuntos de conceptos, por ejemplo podemos distinguir un subconjunto de cálculos, como lo es con **la integral, funciones** y **derivación**
 
@@ -1077,7 +1127,7 @@ ggplot(
   )
 ```
 
-## Comunidad 3 (27 conceptos)
+### Comunidad 3 (27 conceptos)
 
 Se observa que la comunidad no es homogénea y que hay varios subconjuntos de conceptos, por ejemplo se podría decir que hay algunos distintivos de muestreo agrupados, igualmente de regresión y consultoría.
 
@@ -1130,7 +1180,7 @@ ggplot(
   )
 ```
 
-## Comunidad 14 (22 conceptos)
+### Comunidad 14 (22 conceptos)
 
 ```{r}
 coord_c2 <- coord |>
@@ -1180,7 +1230,7 @@ ggplot(
   )
 ```
 
-## Comunidad 5 (21 conceptos)
+### Comunidad 5 (21 conceptos)
 
 ```{r}
 coord_c2 <- coord |>
@@ -1231,7 +1281,7 @@ ggplot(
 ```
 
 
-## Comunidad 12 (18 conceptos)
+### Comunidad 12 (18 conceptos)
 
 ```{r}
 coord_c2 <- coord |>
@@ -1281,7 +1331,7 @@ ggplot(
   )
 ```
 
-## Comunidad 1 (17 conceptos)
+### Comunidad 1 (17 conceptos)
 
 ```{r}
 coord_c2 <- coord |>
@@ -1331,7 +1381,7 @@ ggplot(
   )
 ```
 
-## Tabla de parejas proximas
+### Tabla de parejas proximas
 
 Las menores distancias obtenidas por el modelo corresponden en varios casos a conceptos pertenecientes a una misma línea temática (por ejemplo Convergencia–Distribuciones muestrales o Correspondencias simples y múltiples–Métodos de agrupamiento). Sin embargo, también aparecen pares sin relación disciplinar evidente. Esto ocurre porque algunos conceptos poseen muy pocas conexiones dentro de la red, de modo que el modelo de espacio latente no dispone de información suficiente para diferenciarlos y termina ubicándolos en posiciones prácticamente idénticas.
 
@@ -1428,7 +1478,7 @@ tabla_proximidad %>%
 ```
 
 
-# Algoritmo de inferencia de prerrequisitos curriculares {.tabset}
+## Algoritmo de inferencia de prerrequisitos curriculares {.tabset}
 
 La red de cursos se construyó a partir de la red de relaciones entre conceptos y de la asignación de cada concepto a una asignatura. El procedimiento implementado consta de las siguientes etapas:
 
@@ -1620,7 +1670,7 @@ g34 <- induced_subgraph(
 ```
 
 
-### Red total
+#### Red total
 
 
 ```{r}
@@ -1634,7 +1684,7 @@ plot(
 )
 ```
 
-### Componente 1 (Fundamentación matemática)
+#### Componente 1 (Fundamentación matemática)
 
 ```{r fig.height=10}
 layoutgcursos <- layout_with_sugiyama(g1)$layout
@@ -1673,7 +1723,7 @@ Aunque el grafo obtenido es bastante similar al pensum vigente, se observa una d
 + Una diferencia importante se observa en la asignatura Fundamentos de física moderna. En el pensum vigente estas materias no tienen prerrequisitos formales; sin embargo, el algoritmo propone como prerrequisito Cálculo de ecuaciones diferenciales ordinarias. Esta relación resulta consistente con los contenidos de ambas asignaturas, ya que numerosos modelos físicos se describen mediante ecuaciones diferenciales, tanto en la formulación de la mecánica clásica como en diversos problemas de la física moderna. En consecuencia, el algoritmo identifica una dependencia conceptual que podría facilitar la comprensión de estos cursos, aunque actualmente no se encuentre establecida en la estructura curricular.
 
 
-### Componente 2 (Fundamentación estadística)
+#### Componente 2 (Fundamentación estadística)
 
 ```{r fig.height=10}
 layoutgcursos <- layout_with_sugiyama(g2)$layout
@@ -1707,7 +1757,7 @@ vertex.label.color = "black"
 El algoritmo ubica la asignatura Indicadores sociales después de Probabilidad. Esta dependencia puede interpretarse como la necesidad de contar con los fundamentos probabilísticos que sustentan el estudio de la variabilidad y la incertidumbre presentes en los fenómenos sociales. Si bien los conceptos de estimación e inferencia se desarrollan formalmente en una asignatura posterior, los conocimientos adquiridos en Probabilidad constituyen una base matemática adecuada para comprender los contenidos iniciales de Indicadores sociales.
 
 
-### Componente 3 (Muestreo)
+#### Componente 3 (Muestreo)
 
 ```{r fig.height=10}
 layoutgcursos <- layout_with_sugiyama(g3)$layout
@@ -1742,7 +1792,7 @@ vertex.label.color = "black"
 Una diferencia llamativa corresponde a la relación entre Diseño de experimentos y Muestreo estadístico. Mientras que el algoritmo ubica a Diseño de experimentos como antecedente de Muestreo estadístico, esta organización difiere de la secuencia que intuitivamente podría esperarse. Este resultado puede deberse a la estructura de las relaciones conceptuales registradas en la base de conocimiento, por lo que constituye un caso que amerita una revisión detallada de las dependencias definidas entre conceptos y de su asignación a las diferentes asignaturas.
 
 
-### Componente 4 (Regresión)
+#### Componente 4 (Regresión)
 
 ```{r fig.height=10}
 layoutgcursos <- layout_with_sugiyama(g4)$layout
@@ -1776,7 +1826,7 @@ vertex.label.color = "black"
 
 En la asignatura Estadística espacial, el plan de estudios vigente establece como único prerrequisito Análisis de regresión. No obstante, el algoritmo identifica que los cursos de Procesos estocásticos y Series de tiempo univariadas también constituyen antecedentes conceptuales relevantes. Esta relación es consistente con los fundamentos de la estadística espacial, en los que el análisis de la dependencia espacial puede abordarse desde la teoría de procesos estocásticos y comparte herramientas metodológicas con el análisis de series de tiempo, particularmente en el estudio de estructuras de dependencia y correlación. En consecuencia, el algoritmo sugiere que cursar estas asignaturas previamente podría proporcionar una base teórica más sólida para el desarrollo de los contenidos de estadística espacial.
 
-### Componente 5 (Programación)
+#### Componente 5 (Programación)
 
 ```{r fig.height=10}
 layoutgcursos <- layout_with_sugiyama(g5)$layout
@@ -1812,7 +1862,7 @@ En esta comunidad se observa una estructura muy simple, donde Programación de c
 
 
 
-### Componentes 2 y 4
+#### Componentes 2 y 4
 
 ```{r fig.height=10}
 layoutgcursos <- layout_with_sugiyama(g24)$layout
